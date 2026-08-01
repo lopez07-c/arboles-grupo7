@@ -1,242 +1,250 @@
-/* ==========================================================================
+/* ===========================================================
    Módulo 1 · Rescata el Árbol
-   Arrastrar chips (nodos) hasta las posiciones correctas del árbol (TREE_A)
-   y luego responder un cuestionario sobre sus propiedades.
-   ========================================================================== */
+   Cada partida usa un árbol distinto, pistas de relaciones
+   distintas y un cuestionario aleatorio (7 preguntas de un
+   banco de 12+ tipos). Nunca se repite igual dos veces seguidas.
+   =========================================================== */
 
 (function(){
-  const stage   = document.getElementById('stage');
-  const svg     = document.getElementById('lines');
-  const bank    = document.getElementById('bank');
+  const stage      = document.getElementById('stage');
+  const svg        = document.getElementById('lines');
+  const bank       = document.getElementById('bank');
   const statusPill = document.getElementById('statusPill');
-  const resetBtn = document.getElementById('resetBtn');
-  const quizEl  = document.getElementById('quiz');
-  const questionsEl = document.getElementById('questions');
-  const finalBanner = document.getElementById('finalBanner');
+  const resetBtn   = document.getElementById('resetBtn');
+  const quizWrap   = document.getElementById('quiz');
+  const questionsEl= document.getElementById('questions');
+  const finalBanner= document.getElementById('finalBanner');
   const finalScoreEl = document.getElementById('finalScore');
 
-  const nodeIds = Object.keys(TREE_A.nodes);
-  let placedCount = 0;
+  let tree, ids, total, placed, score, answered;
 
-  /* ---------------------- construir slots (drop targets) ---------------------- */
-  function buildSlots(){
+  // Panel de pistas (se inserta una sola vez)
+  let cluePanel = document.querySelector('.clue-panel');
+  if(!cluePanel){
+    cluePanel = document.createElement('div');
+    cluePanel.className = 'clue-panel';
+    bank.parentNode.insertBefore(cluePanel, bank);
+  }
+
+  function pickTreeForRound(){
+    // Mezcla de dificultad: a veces fácil, casi siempre media, a veces difícil.
+    const r = Math.random();
+    if(r < 0.25) return randomTree('easy');
+    if(r < 0.85) return randomTree('medium');
+    return randomTree('hard');
+  }
+
+  function relationClue(id){
+    const n = tree.nodes[id];
+    const p = tree.nodes[n.parent];
+    const side = p.left === id ? 'hijo izquierdo' : 'hijo derecho';
+    return `<b>${id}</b> es el ${side} de <b>${n.parent}</b>.`;
+  }
+
+  function buildClues(){
+    const clues = [`<b>${tree.root}</b> es la raíz del árbol.`];
+    ids.filter(id => id !== tree.root).forEach(id => clues.push(relationClue(id)));
+    return shuffle(clues);
+  }
+
+  function startRound(){
+    tree = pickTreeForRound();
+    ids = Object.keys(tree.nodes);
+    total = ids.length;
+    placed = 0;
+    score = 0;
+    answered = 0;
+
+    // Reset UI
+    quizWrap.classList.remove('show');
+    finalBanner.classList.remove('show');
+    questionsEl.innerHTML = '';
+    statusPill.classList.remove('done');
+    statusPill.textContent = `0 / ${total} nodos colocados`;
+
+    // Pistas
+    cluePanel.innerHTML = `<h3>🔎 Pistas para reconstruir el árbol</h3><ul>${
+      buildClues().map(c => `<li>${c}</li>`).join('')
+    }</ul>`;
+
+    // Dibuja el esqueleto (líneas + slots vacíos)
+    drawTreeLines(svg, tree);
     stage.querySelectorAll('.tree-node').forEach(n => n.remove());
-    drawTreeLines(svg, TREE_A);
-    nodeIds.forEach(id => {
-      const n = TREE_A.nodes[id];
-      const slot = document.createElement('div');
-      slot.className = 'tree-node';
-      slot.dataset.slotId = id;
-      slot.style.left = n.x + '%';
-      slot.style.top = n.y + '%';
-      slot.textContent = '?';
-      stage.appendChild(slot);
+    ids.forEach(id => {
+      const n = tree.nodes[id];
+      const el = document.createElement('div');
+      el.className = 'tree-node slot';
+      el.dataset.id = id;
+      el.style.left = n.x + '%';
+      el.style.top = n.y + '%';
+      stage.appendChild(el);
     });
-  }
 
-  /* ---------------------- construir banco de chips (desordenado) ---------------------- */
-  function shuffled(arr){
-    const a = arr.slice();
-    for(let i = a.length - 1; i > 0; i--){
-      const j = Math.floor(Math.random() * (i+1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-  }
-
-  function buildBank(){
+    // Banco de fichas (chips) desordenado
     bank.innerHTML = '';
-    shuffled(nodeIds).forEach(id => {
+    shuffle(ids).forEach(id => {
       const chip = document.createElement('div');
       chip.className = 'chip';
-      chip.dataset.letter = id;
+      chip.dataset.label = id;
       chip.textContent = id;
-      chip.setAttribute('tabindex', '0');
-      chip.setAttribute('aria-label', 'Nodo ' + id + ', arrastrar a su posición');
-      attachDrag(chip);
       bank.appendChild(chip);
+      attachDrag(chip);
     });
   }
 
-  function updateStatus(){
-    statusPill.textContent = placedCount + ' / ' + nodeIds.length + ' nodos colocados';
-    if(placedCount === nodeIds.length){
-      statusPill.classList.add('ok');
-      statusPill.textContent = '¡Árbol completo!';
-      buildQuiz();
-      quizEl.classList.add('visible');
-      quizEl.scrollIntoView({ behavior:'smooth', block:'start' });
-    }
-  }
-
-  /* --------------------------- drag & drop (pointer events) --------------------------- */
+  /* ---------- Drag & drop con Pointer Events (mouse + touch) ---------- */
   function attachDrag(chip){
-    chip.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
+    chip.addEventListener('pointerdown', (ev) => {
+      if(chip.classList.contains('placed')) return;
+      ev.preventDefault();
       const rect = chip.getBoundingClientRect();
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
+      const ghost = chip.cloneNode(true);
+      ghost.classList.add('dragging');
+      ghost.style.width = rect.width + 'px';
+      ghost.style.height = rect.height + 'px';
+      document.body.appendChild(ghost);
+      moveGhost(ghost, ev.clientX, ev.clientY);
+      chip.style.opacity = '.25';
 
-      chip.setPointerCapture(e.pointerId);
-      chip.classList.add('floating');
-      chip.style.position = 'fixed';
-      chip.style.width = rect.width + 'px';
-      chip.style.height = rect.height + 'px';
-      moveTo(e.clientX - offsetX, e.clientY - offsetY);
-
-      function moveTo(x, y){
-        chip.style.left = x + 'px';
-        chip.style.top = y + 'px';
+      function onMove(e){ moveGhost(ghost, e.clientX, e.clientY); }
+      function onUp(e){
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        ghost.remove();
+        chip.style.opacity = '';
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        const slot = target ? target.closest('.tree-node.slot') : null;
+        handleDrop(chip, slot);
       }
-
-      function onMove(ev){
-        moveTo(ev.clientX - offsetX, ev.clientY - offsetY);
-      }
-
-      function onUp(ev){
-        chip.removeEventListener('pointermove', onMove);
-        chip.removeEventListener('pointerup', onUp);
-        chip.classList.remove('floating');
-        chip.style.position = '';
-        chip.style.width = '';
-        chip.style.height = '';
-        chip.style.left = '';
-        chip.style.top = '';
-
-        const target = findSlotUnder(ev.clientX, ev.clientY);
-        if(target){
-          handleDrop(chip, target);
-        }
-      }
-
-      chip.addEventListener('pointermove', onMove);
-      chip.addEventListener('pointerup', onUp);
-    });
-
-    /* accesibilidad: Enter/Espacio coloca el chip en el primer slot vacío correcto (ayuda por teclado) */
-    chip.addEventListener('keydown', (e) => {
-      if(e.key !== 'Enter' && e.key !== ' ') return;
-      e.preventDefault();
-      const correctSlot = stage.querySelector('.tree-node[data-slot-id="' + chip.dataset.letter + '"]:not(.correct)');
-      if(correctSlot) handleDrop(chip, correctSlot);
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
     });
   }
-
-  function findSlotUnder(x, y){
-    const els = document.elementsFromPoint(x, y);
-    return els.find(el => el.classList && el.classList.contains('tree-node') && !el.classList.contains('correct'));
+  function moveGhost(ghost, x, y){
+    ghost.style.left = (x - ghost.offsetWidth / 2) + 'px';
+    ghost.style.top  = (y - ghost.offsetHeight / 2) + 'px';
   }
 
   function handleDrop(chip, slot){
-    const isCorrect = slot.dataset.slotId === chip.dataset.letter;
-    if(isCorrect){
-      slot.textContent = chip.dataset.letter;
-      slot.classList.add('filled', 'correct');
-      if(slot.dataset.slotId === TREE_A.root) slot.classList.add('root-node');
-      chip.remove();
-      placedCount++;
-      updateStatus();
-    } else {
-      slot.classList.add('wrong');
-      setTimeout(() => slot.classList.remove('wrong'), 300);
-      // el chip vuelve al banco
-      bank.appendChild(chip);
+    if(!slot || slot.classList.contains('filled')){
+      shake(chip); return;
     }
+    const label = chip.dataset.label;
+    if(slot.dataset.id === label){
+      slot.classList.add('filled');
+      slot.textContent = label;
+      if(label === tree.root) slot.classList.add('root-node');
+      chip.classList.add('placed');
+      placed++;
+      statusPill.textContent = `${placed} / ${total} nodos colocados`;
+      showToast(`¡Correcto! ${label} en su lugar.`, 'ok');
+      if(placed === total){
+        statusPill.classList.add('done');
+        statusPill.textContent = `¡Árbol completo! (${total}/${total})`;
+        launchQuiz();
+      }
+    } else {
+      shake(chip);
+      showToast('Ese nodo no va ahí. Revisa las pistas.', 'bad');
+    }
+  }
+  function shake(chip){
+    chip.classList.add('wrong');
+    setTimeout(() => chip.classList.remove('wrong'), 350);
+  }
+
+  /* ---------- Cuestionario ---------- */
+  let totalQuestions = 7;
+  function launchQuiz(){
+    const questions = generateQuestions(tree, 7);
+    totalQuestions = questions.length;
+    questionsEl.innerHTML = '';
+    questions.forEach((q, idx) => renderQuestion(q, idx));
+    quizWrap.classList.add('show');
+    quizWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderQuestion(q, idx){
+    const card = document.createElement('div');
+    card.className = 'q-card';
+    const normalizedAnswer = String(q.answer).trim().toLowerCase();
+
+    let inner = `<div class="q-meta">${q.meta} · Pregunta ${idx + 1}</div><div class="q-prompt">${q.prompt}</div>`;
+
+    if(q.kind === 'mc'){
+      inner += `<div class="q-options">${
+        q.options.map(opt => `<button class="q-opt" data-val="${opt}">${opt}</button>`).join('')
+      }</div><div class="q-feedback"></div>`;
+      card.innerHTML = inner;
+      const feedback = card.querySelector('.q-feedback');
+      card.querySelectorAll('.q-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if(answered > idx) return; // ya respondida
+          const val = btn.dataset.val.trim().toLowerCase();
+          const opts = card.querySelectorAll('.q-opt');
+          opts.forEach(o => o.classList.add('disabled'));
+          if(val === normalizedAnswer){
+            btn.classList.add('correct');
+            feedback.textContent = '✓ ¡Correcto!';
+            feedback.className = 'q-feedback ok';
+            score++;
+          } else {
+            btn.classList.add('incorrect');
+            opts.forEach(o => { if(o.dataset.val.trim().toLowerCase() === normalizedAnswer) o.classList.add('correct'); });
+            feedback.textContent = `✗ Incorrecto. Respuesta: ${q.answer}`;
+            feedback.className = 'q-feedback bad';
+          }
+          registerAnswered();
+        });
+      });
+    } else {
+      inner += `<div class="q-input-row">
+        <input type="text" placeholder="Tu respuesta" />
+        <button class="q-check-btn">Verificar</button>
+      </div><div class="q-feedback"></div>`;
+      card.innerHTML = inner;
+      const input = card.querySelector('input');
+      const btn = card.querySelector('.q-check-btn');
+      const feedback = card.querySelector('.q-feedback');
+      function check(){
+        if(btn.disabled) return;
+        const val = input.value.trim().toLowerCase();
+        input.disabled = true; btn.disabled = true;
+        if(val === normalizedAnswer){
+          feedback.textContent = '✓ ¡Correcto!';
+          feedback.className = 'q-feedback ok';
+          score++;
+        } else {
+          feedback.textContent = `✗ Incorrecto. Respuesta: ${q.answer}`;
+          feedback.className = 'q-feedback bad';
+        }
+        registerAnswered();
+      }
+      btn.addEventListener('click', check);
+      input.addEventListener('keydown', e => { if(e.key === 'Enter') check(); });
+    }
+    questionsEl.appendChild(card);
+  }
+
+  let answeredCount = 0;
+  function registerAnswered(){
+    answeredCount++;
+    answered = answeredCount;
+    if(answeredCount >= totalQuestions){
+      finishQuiz();
+    }
+  }
+  function finishQuiz(){
+    finalScoreEl.textContent = score;
+    finalBanner.querySelector('strong').innerHTML = `Puntaje final: <span id="finalScore">${score}</span> / ${totalQuestions}`;
+    finalBanner.classList.add('show');
+    if(score >= Math.ceil(totalQuestions * 0.7)) confettiBurst(70);
   }
 
   resetBtn.addEventListener('click', () => {
-    placedCount = 0;
-    statusPill.classList.remove('ok');
-    quizEl.classList.remove('visible');
-    finalBanner.classList.remove('visible');
-    buildSlots();
-    buildBank();
-    updateStatus();
+    answeredCount = 0;
+    startRound();
   });
 
-  /* --------------------------------- cuestionario --------------------------------- */
-  function buildQuiz(){
-    const lr = leftRightChildren(TREE_A, 'B');
-    const parentOfF = TREE_A.nodes['F'].parent;
-    const siblingsD = siblingsOf(TREE_A, 'D');
-
-    const questions = [
-      {
-        text: '¿Cuál es la raíz del árbol?',
-        options: shuffled(['A','B','C','D']),
-        answer: 'A'
-      },
-      {
-        text: '¿Cuál es la altura del árbol?',
-        options: shuffled(['0','1','2','3']),
-        answer: String(heightOf(TREE_A))
-      },
-      {
-        text: '¿Cuál es la profundidad del nodo D?',
-        options: shuffled(['0','1','2','3']),
-        answer: String(depthOf(TREE_A, 'D'))
-      },
-      {
-        text: '¿Quién es el padre del nodo F?',
-        options: shuffled(['A','B','C','G']),
-        answer: parentOfF
-      },
-      {
-        text: '¿Cuál es el hermano del nodo D?',
-        options: shuffled(['B','C','E','G']),
-        answer: siblingsD[0]
-      }
-    ];
-
-    questionsEl.innerHTML = '';
-    let answeredCount = 0;
-    let score = 0;
-
-    questions.forEach((q, idx) => {
-      const box = document.createElement('div');
-      box.className = 'question';
-      const p = document.createElement('p');
-      p.className = 'q-text';
-      p.textContent = (idx+1) + '. ' + q.text;
-      const opts = document.createElement('div');
-      opts.className = 'options';
-      const feedback = document.createElement('div');
-      feedback.className = 'q-feedback';
-
-      q.options.forEach(opt => {
-        const b = document.createElement('button');
-        b.className = 'option-btn';
-        b.type = 'button';
-        b.textContent = opt;
-        b.addEventListener('click', () => {
-          const correct = opt === q.answer;
-          opts.querySelectorAll('.option-btn').forEach(x => x.disabled = true);
-          b.classList.add(correct ? 'correct' : 'wrong');
-          if(!correct){
-            opts.querySelectorAll('.option-btn').forEach(x => { if(x.textContent === q.answer) x.classList.add('correct'); });
-          } else {
-            score++;
-          }
-          feedback.textContent = correct ? '¡Correcto!' : ('No — la respuesta correcta es ' + q.answer + '.');
-          feedback.className = 'q-feedback ' + (correct ? 'ok' : 'bad');
-          answeredCount++;
-          if(answeredCount === questions.length){
-            finalScoreEl.textContent = score;
-            finalBanner.classList.add('visible');
-          }
-        });
-        opts.appendChild(b);
-      });
-
-      box.appendChild(p);
-      box.appendChild(opts);
-      box.appendChild(feedback);
-      questionsEl.appendChild(box);
-    });
-  }
-
-  /* --------------------------------- init --------------------------------- */
-  buildSlots();
-  buildBank();
-  updateStatus();
+  startRound();
 })();

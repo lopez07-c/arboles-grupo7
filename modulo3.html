@@ -53,7 +53,7 @@
             <span class="clue-status" id="status1"></span>
           </li>
           <li class="clue-item">
-            <label for="clue2">2. ¿Cuál es la profundidad del nodo D?</label>
+            <label for="clue2" id="clue2Label">2. ¿Cuál es la profundidad del nodo marcado con ★?</label>
             <input type="number" id="clue2" inputmode="numeric" min="0" max="9">
             <span class="clue-status" id="status2"></span>
           </li>
@@ -67,7 +67,7 @@
       </div>
 
       <div class="door" id="door">
-        <h3>🔒 Puerta cerrada</h3>
+        <h3 id="doorTitle">🔒 Puerta cerrada</h3>
         <p>Introduce el código de 3 dígitos que resulta de tus respuestas.</p>
         <div class="code-display" id="codeDisplay">_ _ _</div>
         <p class="attempts" id="attempts">Intentos: 0</p>
@@ -76,9 +76,12 @@
     </div>
 
     <div class="final-banner" id="finalBanner">
-      <strong>🎉 ¡Puerta abierta! Escapaste de la sala.</strong>
-      <p style="margin:8px 0 0;">Altura = 2 · Profundidad(D) = 2 · Hojas = 2 → código <b class="mono">222</b>.</p>
-      <div style="margin-top:12px;"><a href="index.html" class="btn btn-primary">Volver al inicio</a></div>
+      <strong id="finalBannerTitle">🎉 ¡Puerta abierta! Escapaste de la sala.</strong>
+      <p style="margin:8px 0 0;" id="finalBannerDetail"></p>
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="newRoomBtn" type="button">↺ Otra sala</button>
+        <a href="index.html" class="btn btn-primary">Volver al inicio</a>
+      </div>
     </div>
   </div>
 </section>

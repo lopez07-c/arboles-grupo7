@@ -1,135 +1,140 @@
-/* ==========================================================================
+/* ===========================================================
    Módulo 2 · Búsqueda del Tesoro
-   El jugador sigue instrucciones de navegación (raíz / padre / hijo
-   izquierdo / hijo derecho) haciendo clic en el nodo correcto del árbol.
-   ========================================================================== */
+   Árbol, tesoro e instrucciones de recorrido aleatorios en cada
+   partida. Las frases de instrucción varían para que no se
+   sienta repetitivo aunque el patrón (izq/der) se repita.
+   =========================================================== */
 
 (function(){
   const stage = document.getElementById('stage');
-  const svg = document.getElementById('lines');
+  const svg   = document.getElementById('lines');
   const instructionText = document.getElementById('instructionText');
   const scoreEl = document.getElementById('scoreEl');
-  const stepEl = document.getElementById('stepEl');
+  const stepEl  = document.getElementById('stepEl');
   const totalStepsEl = document.getElementById('totalStepsEl');
-  const posEl = document.getElementById('posEl');
+  const posEl   = document.getElementById('posEl');
   const finalBanner = document.getElementById('finalBanner');
   const treasureNodeEl = document.getElementById('treasureNode');
   const finalScoreEl = document.getElementById('finalScore');
   const playAgainBtn = document.getElementById('playAgainBtn');
 
-  const STEPS = 6;
-  let path = [];
-  let stepIndex = 0;
-  let score = 0;
-  let current = TREE_A.root;
-  let nodeEls = {};
+  const START_PHRASES = [
+    'Empieza en la raíz y ve al {dir}.',
+    'Desde la raíz, muévete al {dir}.',
+    'Parte de la raíz y dirígete al {dir}.',
+    'La aventura inicia en la raíz: ve al {dir}.'
+  ];
+  const STEP_PHRASES = [
+    'Desde tu posición actual, ve al {dir}.',
+    'Avanza al {dir} del nodo actual.',
+    'Muévete al {dir} desde donde estás.',
+    'Continúa hacia el {dir}.',
+    'Un paso más: dirígete al {dir}.'
+  ];
 
-  function possibleMoves(cur){
-    const moves = [];
-    const node = TREE_A.nodes[cur];
-    if(node.parent){
-      moves.push({ type:'root',   target: TREE_A.root });
-      moves.push({ type:'parent', target: node.parent });
-    }
-    const lr = leftRightChildren(TREE_A, cur);
-    if(lr.left)  moves.push({ type:'left',  target: lr.left });
-    if(lr.right) moves.push({ type:'right', target: lr.right });
-    return moves;
+  let tree, treasure, path, instructions, currentIndex, score;
+
+  function pickTreasure(){
+    const leafList = leaves(tree);
+    // Prioriza hojas profundas para más desafío, con algo de variedad.
+    const sorted = leafList.slice().sort((a, b) => tree.nodes[b].depth - tree.nodes[a].depth);
+    const topPool = sorted.filter(id => tree.nodes[id].depth >= Math.max(1, tree.maxDepth - 1));
+    return pick(topPool.length ? topPool : leafList);
   }
 
-  function generatePath(n){
-    const p = [];
-    let cur = TREE_A.root;
-    for(let i = 0; i < n; i++){
-      const moves = possibleMoves(cur);
-      const move = moves[Math.floor(Math.random() * moves.length)];
-      p.push({ type: move.type, target: move.target, fromRoot: cur === TREE_A.root });
-      cur = move.target;
-    }
-    return p;
+  function buildPath(){
+    const p = [treasure];
+    let cur = treasure;
+    while(tree.nodes[cur].parent){ cur = tree.nodes[cur].parent; p.push(cur); }
+    return p.reverse(); // root ... treasure
   }
 
-  function instructionFor(step){
-    switch(step.type){
-      case 'left':  return step.fromRoot ? 'Ve al hijo izquierdo de la raíz.' : 'Ve al hijo izquierdo.';
-      case 'right': return step.fromRoot ? 'Ve al hijo derecho de la raíz.'   : 'Ahora ve al hijo derecho.';
-      case 'parent':return 'Sube a tu nodo padre.';
-      case 'root':  return 'Vuelve a la raíz.';
+  function buildInstructions(){
+    const list = [];
+    for(let i = 1; i < path.length; i++){
+      const fromId = path[i - 1], toId = path[i];
+      const dir = tree.nodes[fromId].left === toId ? 'hijo izquierdo' : 'hijo derecho';
+      const phrase = i === 1 ? pick(START_PHRASES) : pick(STEP_PHRASES);
+      list.push(phrase.replace('{dir}', dir));
     }
+    return list;
   }
 
-  function buildStage(){
+  function startRound(){
+    tree = randomTree(Math.random() < 0.5 ? 'medium' : 'hard');
+    treasure = pickTreasure();
+    path = buildPath();
+    instructions = buildInstructions();
+    currentIndex = 0;
+    score = 0;
+
+    finalBanner.classList.remove('show');
+    scoreEl.textContent = '0';
+    stepEl.textContent = '0';
+    totalStepsEl.textContent = String(path.length - 1);
+    posEl.textContent = tree.root;
+    instructionText.textContent = instructions[0];
+
+    renderTree();
+  }
+
+  function renderTree(){
+    drawTreeLines(svg, tree, { litEdge: (id) => {
+      const idx = path.indexOf(id);
+      return idx > -1 && idx <= currentIndex && idx > 0;
+    }});
     stage.querySelectorAll('.tree-node').forEach(n => n.remove());
-    drawTreeLines(svg, TREE_A);
-    nodeEls = {};
-    Object.entries(TREE_A.nodes).forEach(([id, n]) => {
+    Object.keys(tree.nodes).forEach(id => {
+      const n = tree.nodes[id];
       const el = document.createElement('div');
       el.className = 'tree-node filled clickable';
+      if(id === tree.root) el.classList.add('root-node');
+      if(id === treasure) el.classList.add('treasure');
+      if(id === path[currentIndex]) el.classList.add('current');
+      if(path.slice(0, currentIndex).includes(id)) el.classList.add('visited');
+      el.dataset.id = id;
       el.style.left = n.x + '%';
       el.style.top = n.y + '%';
       el.textContent = id;
-      el.dataset.id = id;
-      el.setAttribute('role', 'button');
-      el.setAttribute('tabindex', '0');
-      el.addEventListener('click', () => onNodeChosen(id, el));
-      el.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); onNodeChosen(id, el); } });
+      el.addEventListener('click', () => handleClick(id));
       stage.appendChild(el);
-      nodeEls[id] = el;
     });
   }
 
-  function refreshCurrentHighlight(){
-    Object.values(nodeEls).forEach(el => el.classList.remove('current', 'root-node'));
-    nodeEls[current].classList.add('current');
-    if(current === TREE_A.root) nodeEls[current].classList.add('root-node');
-  }
-
-  function onNodeChosen(id, el){
-    if(finalBanner.classList.contains('visible')) return;
-    const expected = path[stepIndex].target;
+  function handleClick(id){
+    if(currentIndex >= path.length - 1) return; // ya llegó
+    const expected = path[currentIndex + 1];
     if(id === expected){
+      currentIndex++;
       score += 10;
-      current = id;
-      stepIndex++;
-      scoreEl.textContent = score;
-      stepEl.textContent = stepIndex;
-      posEl.textContent = current;
-      refreshCurrentHighlight();
-      if(stepIndex >= path.length){
-        finish();
+      scoreEl.textContent = String(score);
+      stepEl.textContent = String(currentIndex);
+      posEl.textContent = id;
+      renderTree();
+      if(currentIndex === path.length - 1){
+        finishRound();
       } else {
-        instructionText.textContent = instructionFor(path[stepIndex]);
+        instructionText.textContent = instructions[currentIndex];
+        showToast('¡Bien! Sigue avanzando.', 'ok');
       }
     } else {
-      el.classList.add('wrong');
-      setTimeout(() => el.classList.remove('wrong'), 300);
+      score = Math.max(0, score - 5);
+      scoreEl.textContent = String(score);
+      const el = stage.querySelector(`.tree-node[data-id="${id}"]`);
+      if(el){ el.classList.add('wrong-flash'); setTimeout(() => el.classList.remove('wrong-flash'), 400); }
+      showToast('Ese no es el camino. Revisa la instrucción.', 'bad');
     }
   }
 
-  function finish(){
-    instructionText.textContent = '¡Llegaste al tesoro!';
-    treasureNodeEl.textContent = current;
-    finalScoreEl.textContent = score;
-    finalBanner.classList.add('visible');
-    Object.values(nodeEls).forEach(el => el.classList.remove('clickable'));
+  function finishRound(){
+    treasureNodeEl.textContent = treasure;
+    finalScoreEl.textContent = String(score);
+    instructionText.textContent = '¡Llegaste al tesoro! 🏆';
+    finalBanner.classList.add('show');
+    confettiBurst(70);
   }
 
-  function startGame(){
-    score = 0;
-    stepIndex = 0;
-    current = TREE_A.root;
-    path = generatePath(STEPS);
-    scoreEl.textContent = '0';
-    stepEl.textContent = '0';
-    totalStepsEl.textContent = String(STEPS);
-    posEl.textContent = current;
-    finalBanner.classList.remove('visible');
-    buildStage();
-    refreshCurrentHighlight();
-    instructionText.textContent = instructionFor(path[0]);
-  }
+  playAgainBtn.addEventListener('click', startRound);
 
-  playAgainBtn.addEventListener('click', startGame);
-
-  startGame();
+  startRound();
 })();
