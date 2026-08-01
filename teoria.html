@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teoría — Árboles | Grupo 7</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-nav="teoria">
+
+<nav class="site-nav">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="10" r="4" fill="#eab54c"/><circle cx="10" cy="26" r="4" fill="#5fae74"/><circle cx="30" cy="26" r="4" fill="#5fae74"/>
+        <path d="M20 13 L20 20 L10 22 M20 20 L30 22" stroke="#8a5a35" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span>Grupo 7 — Árboles<small>Estructuras de datos</small></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html" data-nav="inicio">Inicio</a></li>
+      <li><a href="teoria.html" data-nav="teoria">Teoría</a></li>
+      <li><a href="modulo1.html" data-nav="m1">Módulo 1</a></li>
+      <li><a href="modulo2.html" data-nav="m2">Módulo 2</a></li>
+      <li><a href="modulo3.html" data-nav="m3">Módulo 3</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" style="padding-bottom:10px;">
+  <div class="container">
+    <span class="eyebrow">Teoría</span>
+    <h1 style="font-size:clamp(1.8rem,3.4vw,2.5rem);">Definiciones básicas y terminología</h1>
+    <p class="lead">Todo lo que necesitas antes de jugar, explicado sobre el mismo árbol que vas a usar en los módulos 1 y 2.</p>
+  </div>
+</header>
+
+<section class="section" style="padding-top:10px;">
+  <div class="container">
+    <div class="section-head"><h2>Definiciones básicas</h2></div>
+    <dl class="def-grid">
+      <div class="def-item"><dt>Árbol</dt><dd>Estructura de datos jerárquica formada por nodos conectados, sin ciclos, donde cada nodo (salvo la raíz) tiene exactamente un padre.</dd></div>
+      <div class="def-item"><dt>Nodo</dt><dd>Unidad básica del árbol que guarda un valor y enlaces hacia sus hijos.</dd></div>
+      <div class="def-item"><dt>Raíz</dt><dd>El único nodo sin padre; es el punto de partida de todo el árbol.</dd></div>
+      <div class="def-item"><dt>Hoja</dt><dd>Nodo que no tiene hijos; representa el final de una rama.</dd></div>
+      <div class="def-item"><dt>Padre</dt><dd>Nodo del que se desprende directamente otro nodo.</dd></div>
+      <div class="def-item"><dt>Hijo</dt><dd>Nodo conectado directamente "hacia abajo" desde otro nodo (su padre).</dd></div>
+      <div class="def-item"><dt>Hermanos</dt><dd>Nodos que comparten el mismo padre.</dd></div>
+      <div class="def-item"><dt>Subárbol</dt><dd>Un nodo cualquiera junto con todos sus descendientes forma un árbol más pequeño dentro del árbol original.</dd></div>
+      <div class="def-item"><dt>Árbol binario</dt><dd>Árbol en el que cada nodo tiene como máximo dos hijos: izquierdo y derecho.</dd></div>
+      <div class="def-item"><dt>Arista (rama)</dt><dd>Conexión entre un nodo padre y un nodo hijo.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="section-head"><h2>Terminología: altura, profundidad y relaciones</h2></div>
+    <dl class="def-grid">
+      <div class="def-item term-item"><dt>Nivel</dt><dd>Distancia (en aristas) de un nodo respecto a la raíz, comenzando en 0 para la raíz.</dd></div>
+      <div class="def-item term-item"><dt>Profundidad de un nodo</dt><dd>Número de aristas en el camino desde la raíz hasta ese nodo. Es igual a su nivel.</dd></div>
+      <div class="def-item term-item"><dt>Altura de un nodo</dt><dd>Número de aristas en el camino más largo desde ese nodo hasta una hoja de su subárbol.</dd></div>
+      <div class="def-item term-item"><dt>Altura del árbol</dt><dd>Altura de la raíz: la profundidad máxima entre todos sus nodos.</dd></div>
+      <div class="def-item term-item"><dt>Ancestro</dt><dd>Cualquier nodo en el camino entre la raíz y un nodo dado (padre, abuelo, etc.).</dd></div>
+      <div class="def-item term-item"><dt>Descendiente</dt><dd>Cualquier nodo alcanzable bajando desde un nodo dado.</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container">
+    <div class="section-head"><h2>Árbol de referencia</h2><p>Este es el árbol que vas a reconstruir y recorrer en los módulos 1 y 2. Repasa sus relaciones antes de jugar.</p></div>
+    <div class="diagram-wrap">
+      <div class="tree-stage" id="stage" style="max-width:640px;margin:0 auto;">
+        <svg class="tree-lines" id="lines"></svg>
+      </div>
+    </div>
+    <div class="def-grid" style="margin-top:20px;">
+      <div class="def-item"><dt>Raíz</dt><dd><b>A</b> — es el único nodo sin padre.</dd></div>
+      <div class="def-item"><dt>Altura del árbol</dt><dd><b>2</b> — el camino más largo (A → B → D, por ejemplo) tiene 2 aristas.</dd></div>
+      <div class="def-item"><dt>Profundidad de D</dt><dd><b>2</b> — el camino A → B → D tiene 2 aristas.</dd></div>
+      <div class="def-item"><dt>Padre de F</dt><dd><b>C</b> — F cuelga directamente de C.</dd></div>
+      <div class="def-item"><dt>Hermanos de D</dt><dd><b>E</b> — ambos son hijos de B.</dd></div>
+      <div class="def-item"><dt>Hojas del árbol</dt><dd><b>D, E, F, G</b> — no tienen hijos propios.</dd></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:0;">
+  <div class="container hero-actions" style="margin-top:0;">
+    <a href="modulo1.html" class="btn btn-primary">Ya entendí — ir al Módulo 1 →</a>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <span>Grupo 7 · Estructuras de Datos · Tema: Árboles</span>
+    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3</span>
+  </div>
+</footer>
+
+<script src="js/common.js"></script>
+<script>
+  const stage = document.getElementById('stage');
+  const svg = document.getElementById('lines');
+  drawTreeLines(svg, TREE_A);
+  Object.entries(TREE_A.nodes).forEach(([id, n]) => {
+    const el = document.createElement('div');
+    el.className = 'tree-node filled' + (id === TREE_A.root ? ' root-node' : '');
+    el.style.left = n.x + '%';
+    el.style.top = n.y + '%';
+    el.textContent = n.label;
+    stage.appendChild(el);
+  });
+</script>
+</body>
+</html>

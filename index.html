@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grupo 7 · Árboles — Proyecto Interactivo</title>
+<meta name="description" content="Aprende árboles binarios jugando: reconstruye un árbol, busca un tesoro navegando sus ramas y escapa de una sala resolviendo su altura, profundidad y hojas.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌳</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-nav="inicio">
+
+<nav class="site-nav">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="10" r="4" fill="#eab54c"/>
+        <circle cx="10" cy="26" r="4" fill="#5fae74"/>
+        <circle cx="30" cy="26" r="4" fill="#5fae74"/>
+        <path d="M20 13 L20 20 L10 22 M20 20 L30 22" stroke="#8a5a35" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span>Grupo 7 — Árboles<small>Estructuras de datos</small></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html" data-nav="inicio">Inicio</a></li>
+      <li><a href="teoria.html" data-nav="teoria">Teoría</a></li>
+      <li><a href="modulo1.html" data-nav="m1">Módulo 1</a></li>
+      <li><a href="modulo2.html" data-nav="m2">Módulo 2</a></li>
+      <li><a href="modulo3.html" data-nav="m3">Módulo 3</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container hero-grid">
+    <div>
+      <span class="eyebrow">Grupo 7 · Tema: Árboles</span>
+      <h1>Un árbol no crece por casualidad: <em>crece por reglas</em>.</h1>
+      <p class="lead">Raíz, padres, hijos, hermanos, altura, profundidad. En vez de memorizar la teoría, la vas a usar: reconstruye un árbol, recorre sus ramas para hallar un tesoro y descifra el código que abre una puerta.</p>
+      <div class="hero-actions">
+        <a href="modulo1.html" class="btn btn-primary">Empezar Módulo 1 →</a>
+        <a href="teoria.html" class="btn btn-ghost">Ver la teoría primero</a>
+      </div>
+    </div>
+    <div class="hero-art">
+      <svg class="grow-tree" viewBox="0 0 300 220" width="100%">
+        <path class="branch b1" d="M150 200 L150 140"/>
+        <path class="branch b2" d="M150 140 L95 95"/>
+        <path class="branch b3" d="M150 140 L205 95"/>
+        <path class="branch b4" d="M95 95 L60 50"/>
+        <path class="branch b5" d="M95 95 L120 50"/>
+        <path class="branch b6" d="M205 95 L180 50"/>
+        <path class="branch b7" d="M205 95 L240 50"/>
+        <circle class="leafnode n1" cx="150" cy="200" r="12" fill="#eab54c"/>
+        <circle class="leafnode n2" cx="95" cy="95" r="10" fill="#5fae74"/>
+        <circle class="leafnode n3" cx="205" cy="95" r="10" fill="#5fae74"/>
+        <circle class="leafnode n4" cx="60" cy="50" r="8" fill="#3c7350"/>
+        <circle class="leafnode n5" cx="120" cy="50" r="8" fill="#3c7350"/>
+        <circle class="leafnode n6" cx="180" cy="50" r="8" fill="#3c7350"/>
+        <circle class="leafnode n7" cx="240" cy="50" r="8" fill="#3c7350"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section class="section">
+  <div class="container">
+    <div class="section-head">
+      <h2>Tres desafíos, un mismo árbol</h2>
+      <p>Cada módulo pone a prueba una habilidad distinta: construir, recorrer y calcular. Se recomienda jugarlos en orden.</p>
+    </div>
+
+    <div class="card-grid">
+      <a href="modulo1.html" class="module-card">
+        <span class="module-num">Módulo 01</span>
+        <h3>🌱 Rescata el Árbol</h3>
+        <p>Arrastra los nodos sueltos hasta armar el árbol correcto y responde sobre raíz, altura, profundidad, padres y hermanos.</p>
+        <span class="module-tag">Construir</span>
+      </a>
+      <a href="modulo2.html" class="module-card">
+        <span class="module-num">Módulo 02</span>
+        <h3>🧭 Búsqueda del Tesoro</h3>
+        <p>Sigue instrucciones como "ve al hijo izquierdo de la raíz" para recorrer el árbol y llegar al nodo del tesoro.</p>
+        <span class="module-tag">Recorrer</span>
+      </a>
+      <a href="modulo3.html" class="module-card">
+        <span class="module-num">Módulo 03</span>
+        <h3>🚪 Escape Room</h3>
+        <p>Calcula la altura, la profundidad de un nodo y el número de hojas para descifrar el código que abre la puerta.</p>
+        <span class="module-tag">Calcular</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container info-card">
+    <h2 style="font-size:1.3rem;">¿Por dónde empezar?</h2>
+    <p style="margin-bottom:0;">Si es tu primera vez con árboles binarios, visita <a href="teoria.html" style="color:var(--gold);">Teoría</a> para repasar las definiciones básicas y la terminología (altura, profundidad y relaciones entre nodos) antes de jugar.</p>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <span>Grupo 7 · Estructuras de Datos · Tema: Árboles</span>
+    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3</span>
+  </div>
+</footer>
+
+<script src="js/common.js"></script>
+</body>
+</html>
