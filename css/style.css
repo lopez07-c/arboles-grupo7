@@ -311,3 +311,20 @@ th.num, td.num { text-align: right; }
   .table-wrap { position: absolute; left: 0; top: 0; width: 100%; border: none; }
   .btn-icon { display: none; }
 }
+/* Permite desplazamiento vertical y mantiene la tabla limpia cuando hay muchos jugadores */
+.table-wrap {
+  width: 100%;
+  max-height: 65vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+}
+
+/* Fija la cabecera de la tabla al hacer scroll hacia abajo */
+.table-wrap table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-card, #1e2b37);
+  z-index: 2;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}

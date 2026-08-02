@@ -1,10 +1,10 @@
 /* ============================================================
-   ranking.js — Grupo 7 · Árboles
-   Sistema de jugadores + puntaje final ponderado:
-     puntajeFinal = modulo1*0.30 + modulo2*0.30 + modulo3*0.40
-   y el Panel de Control (jugadores.html): tarjetas, podio, tabla,
-   buscador, alta/baja de jugadores, reinicio y exportación CSV/PDF.
-   ============================================================ */
+    ranking.js — Grupo 7 · Árboles
+    Sistema de jugadores + puntaje final ponderado:
+      puntajeFinal = modulo1*0.30 + modulo2*0.30 + modulo3*0.40
+    y el Panel de Control (jugadores.html): tarjetas, podio, tabla,
+    buscador, alta/baja de jugadores, reinicio y exportación CSV/PDF.
+    ============================================================ */
 
 const LS_JUGADORES = 'arboles_jugadores';
 const PESOS = { modulo1: 0.3, modulo2: 0.3, modulo3: 0.4 };
@@ -96,6 +96,7 @@ function initPanelJugadores() {
     const ranking = obtenerRanking();
     const visibles = ranking.filter((j) => j.nombre.toLowerCase().includes(filtro.toLowerCase()));
 
+    // 1. Estadísticas generales
     document.getElementById('statTotal').textContent = ranking.length;
     document.getElementById('statPrimero').textContent = ranking[0] ? ranking[0].nombre : '—';
     document.getElementById('statSegundo').textContent = ranking[1] ? ranking[1].nombre : '—';
@@ -103,6 +104,7 @@ function initPanelJugadores() {
     const promedio = ranking.length ? ranking.reduce((s, j) => s + j.puntajeFinal, 0) / ranking.length : 0;
     document.getElementById('statPromedio').textContent = promedio.toFixed(1);
 
+    // 2. Render del Podio (Top 3)
     const podio = document.getElementById('podio');
     podio.innerHTML = '';
     const medallas = ['🥇', '🥈', '🥉'];
@@ -117,17 +119,23 @@ function initPanelJugadores() {
       podio.appendChild(div);
     });
 
+    // 3. Render de la Tabla con TODOS los jugadores simultáneamente
+    if (!cuerpoTabla) return;
     cuerpoTabla.innerHTML = '';
+
     if (visibles.length === 0) {
       cuerpoTabla.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:26px;color:var(--muted);">
         ${ranking.length === 0 ? 'Todavía no hay jugadores registrados.' : 'Ningún jugador coincide con la búsqueda.'}
       </td></tr>`;
       return;
     }
-    visibles.forEach((j, i) => {
+
+    visibles.forEach((j) => {
+      // Ubicar la posición real dentro de la lista general del ranking
+      const posReal = ranking.findIndex((item) => item.nombre.toLowerCase() === j.nombre.toLowerCase()) + 1;
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td class="num">${i + 1}</td>
+        <td class="num">${posReal}</td>
         <td>${escaparHTML(j.nombre)}</td>
         <td class="num">${fmtNum(j.modulo1)}</td>
         <td class="num">${fmtNum(j.modulo2)}</td>
@@ -138,6 +146,7 @@ function initPanelJugadores() {
       cuerpoTabla.appendChild(tr);
     });
 
+    // Asignar eventos de eliminación a cada botón de la tabla
     cuerpoTabla.querySelectorAll('.btn-eliminar').forEach((btn) => {
       btn.addEventListener('click', () => {
         if (confirm(`¿Eliminar a "${btn.dataset.nombre}" del ranking?`)) {
@@ -148,44 +157,58 @@ function initPanelJugadores() {
     });
   }
 
-  buscador.addEventListener('input', () => {
-    filtro = buscador.value;
-    render();
-  });
-
-  document.getElementById('nuevoJugadorBtn').addEventListener('click', () => {
-    const nombre = prompt('Nombre del nuevo jugador:');
-    if (nombre && nombre.trim()) {
-      asegurarJugador(nombre.trim());
-      fijarJugadorActivo(nombre.trim());
+  if (buscador) {
+    buscador.addEventListener('input', () => {
+      filtro = buscador.value;
       render();
-      initPlayerSession();
-    }
-  });
+    });
+  }
 
-  document.getElementById('reiniciarRankingBtn').addEventListener('click', () => {
-    if (confirm('Esto borrará TODOS los jugadores y puntajes guardados en este navegador. ¿Continuar?')) {
-      reiniciarRanking();
-      render();
-    }
-  });
+  const btnNuevo = document.getElementById('nuevoJugadorBtn');
+  if (btnNuevo) {
+    btnNuevo.addEventListener('click', () => {
+      const nombre = prompt('Nombre del nuevo jugador:');
+      if (nombre && nombre.trim()) {
+        asegurarJugador(nombre.trim());
+        fijarJugadorActivo(nombre.trim());
+        render();
+        initPlayerSession();
+      }
+    });
+  }
 
-  document.getElementById('exportarCSVBtn').addEventListener('click', () => {
-    const ranking = obtenerRanking();
-    const filas = [['#', 'Jugador', 'Módulo 1', 'Módulo 2', 'Módulo 3', 'Puntaje Final', 'Fecha']];
-    ranking.forEach((j, i) =>
-      filas.push([i + 1, j.nombre, fmtNum(j.modulo1), fmtNum(j.modulo2), fmtNum(j.modulo3), fmtNum(j.puntajeFinal), fmtFecha(j.fecha)])
-    );
-    const csv = filas.map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ranking-arboles-grupo7.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
+  const btnReiniciar = document.getElementById('reiniciarRankingBtn');
+  if (btnReiniciar) {
+    btnReiniciar.addEventListener('click', () => {
+      if (confirm('Esto borrará TODOS los jugadores y puntajes guardados en este navegador. ¿Continuar?')) {
+        reiniciarRanking();
+        render();
+      }
+    });
+  }
 
-  document.getElementById('exportarPDFBtn').addEventListener('click', () => window.print());
+  const btnCSV = document.getElementById('exportarCSVBtn');
+  if (btnCSV) {
+    btnCSV.addEventListener('click', () => {
+      const ranking = obtenerRanking();
+      const filas = [['#', 'Jugador', 'Módulo 1', 'Módulo 2', 'Módulo 3', 'Puntaje Final', 'Fecha']];
+      ranking.forEach((j, i) =>
+        filas.push([i + 1, j.nombre, fmtNum(j.modulo1), fmtNum(j.modulo2), fmtNum(j.modulo3), fmtNum(j.puntajeFinal), fmtFecha(j.fecha)])
+      );
+      const csv = filas.map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'ranking-arboles-grupo7.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
+  const btnPDF = document.getElementById('exportarPDFBtn');
+  if (btnPDF) {
+    btnPDF.addEventListener('click', () => window.print());
+  }
 
   render();
 }
