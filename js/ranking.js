@@ -2,8 +2,7 @@
     ranking.js — Grupo 7 · Árboles
     Sistema de jugadores + puntaje final ponderado:
       puntajeFinal = modulo1*0.30 + modulo2*0.30 + modulo3*0.40
-    y el Panel de Control (jugadores.html): tarjetas, podio, tabla,
-    buscador, alta/baja de jugadores, reinicio y exportación CSV/PDF.
+    y el Panel de Control (jugadores.html)
     ============================================================ */
 
 const LS_JUGADORES = 'arboles_jugadores';
@@ -43,8 +42,6 @@ function asegurarJugador(nombre) {
   return j;
 }
 
-/* Guarda el puntaje de un módulo (0-100) para el jugador activo.
-   Si ya tenía un puntaje mejor en ese módulo, se conserva el mejor. */
 function actualizarJugador(nombre, modulo, puntaje) {
   const lista = obtenerJugadores();
   let j = buscarJugador(lista, nombre);
@@ -76,6 +73,16 @@ function reiniciarRanking() {
   guardarJugadores([]);
 }
 
+function escaparHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 /* ---------------------------------------------------------------
    Panel de Control de Jugadores (jugadores.html)
 --------------------------------------------------------------- */
@@ -97,29 +104,38 @@ function initPanelJugadores() {
     const visibles = ranking.filter((j) => j.nombre.toLowerCase().includes(filtro.toLowerCase()));
 
     // 1. Estadísticas generales
-    document.getElementById('statTotal').textContent = ranking.length;
-    document.getElementById('statPrimero').textContent = ranking[0] ? ranking[0].nombre : '—';
-    document.getElementById('statSegundo').textContent = ranking[1] ? ranking[1].nombre : '—';
-    document.getElementById('statTercero').textContent = ranking[2] ? ranking[2].nombre : '—';
+    const elTotal = document.getElementById('statTotal');
+    const elPrimero = document.getElementById('statPrimero');
+    const elSegundo = document.getElementById('statSegundo');
+    const elTercero = document.getElementById('statTercero');
+    const elPromedio = document.getElementById('statPromedio');
+
+    if (elTotal) elTotal.textContent = ranking.length;
+    if (elPrimero) elPrimero.textContent = ranking[0] ? ranking[0].nombre : '—';
+    if (elSegundo) elSegundo.textContent = ranking[1] ? ranking[1].nombre : '—';
+    if (elTercero) elTercero.textContent = ranking[2] ? ranking[2].nombre : '—';
+    
     const promedio = ranking.length ? ranking.reduce((s, j) => s + j.puntajeFinal, 0) / ranking.length : 0;
-    document.getElementById('statPromedio').textContent = promedio.toFixed(1);
+    if (elPromedio) elPromedio.textContent = promedio.toFixed(1);
 
     // 2. Render del Podio (Top 3)
     const podio = document.getElementById('podio');
-    podio.innerHTML = '';
-    const medallas = ['🥇', '🥈', '🥉'];
-    [1, 0, 2].forEach((pos) => {
-      const j = ranking[pos];
-      const div = document.createElement('div');
-      div.className = 'podio-puesto podio-' + (pos + 1) + (j ? '' : ' vacio');
-      div.innerHTML = `
-        <span class="podio-medalla">${medallas[pos]}</span>
-        <span class="podio-nombre">${j ? escaparHTML(j.nombre) : '—'}</span>
-        <span class="podio-puntaje">${j ? fmtNum(j.puntajeFinal) : ''}</span>`;
-      podio.appendChild(div);
-    });
+    if (podio) {
+      podio.innerHTML = '';
+      const medallas = ['🥇', '🥈', '🥉'];
+      [1, 0, 2].forEach((pos) => {
+        const j = ranking[pos];
+        const div = document.createElement('div');
+        div.className = 'podio-puesto podio-' + (pos + 1) + (j ? '' : ' vacio');
+        div.innerHTML = `
+          <span class="podio-medalla">${medallas[pos]}</span>
+          <span class="podio-nombre">${j ? escaparHTML(j.nombre) : '—'}</span>
+          <span class="podio-puntaje">${j ? fmtNum(j.puntajeFinal) : ''}</span>`;
+        podio.appendChild(div);
+      });
+    }
 
-    // 3. Render de la Tabla con TODOS los jugadores simultáneamente
+    // 3. Render simultáneo de la tabla con todos los jugadores
     if (!cuerpoTabla) return;
     cuerpoTabla.innerHTML = '';
 
@@ -131,26 +147,26 @@ function initPanelJugadores() {
     }
 
     visibles.forEach((j) => {
-      // Ubicar la posición real dentro de la lista general del ranking
       const posReal = ranking.findIndex((item) => item.nombre.toLowerCase() === j.nombre.toLowerCase()) + 1;
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="num">${posReal}</td>
-        <td>${escaparHTML(j.nombre)}</td>
+        <td><b>${escaparHTML(j.nombre)}</b></td>
         <td class="num">${fmtNum(j.modulo1)}</td>
         <td class="num">${fmtNum(j.modulo2)}</td>
         <td class="num">${fmtNum(j.modulo3)}</td>
-        <td class="num"><b>${fmtNum(j.puntajeFinal)}</b></td>
+        <td class="num"><b style="color:var(--gold, #eab54c);">${fmtNum(j.puntajeFinal)}</b></td>
         <td>${fmtFecha(j.fecha)}</td>
-        <td><button class="btn-icon btn-eliminar" title="Eliminar jugador" data-nombre="${escaparHTML(j.nombre)}">🗑️</button></td>`;
+        <td><button class="btn-icon btn-eliminar" title="Eliminar jugador" data-nombre="${escaparHTML(j.nombre)}" style="background:none;border:none;cursor:pointer;font-size:1.1rem;">🗑️</button></td>`;
       cuerpoTabla.appendChild(tr);
     });
 
-    // Asignar eventos de eliminación a cada botón de la tabla
+    // Activar eventos de borrado para cada fila de la tabla simultánea
     cuerpoTabla.querySelectorAll('.btn-eliminar').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (confirm(`¿Eliminar a "${btn.dataset.nombre}" del ranking?`)) {
-          eliminarJugador(btn.dataset.nombre);
+        const nombreTarget = btn.getAttribute('data-nombre');
+        if (confirm(`¿Eliminar a "${nombreTarget}" del ranking?`)) {
+          eliminarJugador(nombreTarget);
           render();
         }
       });
@@ -170,9 +186,9 @@ function initPanelJugadores() {
       const nombre = prompt('Nombre del nuevo jugador:');
       if (nombre && nombre.trim()) {
         asegurarJugador(nombre.trim());
-        fijarJugadorActivo(nombre.trim());
+        if (typeof fijarJugadorActivo === 'function') fijarJugadorActivo(nombre.trim());
         render();
-        initPlayerSession();
+        if (typeof initPlayerSession === 'function') initPlayerSession();
       }
     });
   }
@@ -180,7 +196,7 @@ function initPanelJugadores() {
   const btnReiniciar = document.getElementById('reiniciarRankingBtn');
   if (btnReiniciar) {
     btnReiniciar.addEventListener('click', () => {
-      if (confirm('Esto borrará TODOS los jugadores y puntajes guardados en este navegador. ¿Continuar?')) {
+      if (confirm('Esto borrará TODOS los jugadores y puntajes guardados. ¿Continuar?')) {
         reiniciarRanking();
         render();
       }
