@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏆 Panel de Control de Jugadores | Grupo 7</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-nav="ranking">
+
+<nav class="site-nav">
+  <div class="container">
+    <a href="index.html" class="brand">
+      <svg class="brand-mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="10" r="4" fill="#eab54c"/><circle cx="10" cy="26" r="4" fill="#5fae74"/><circle cx="30" cy="26" r="4" fill="#5fae74"/>
+        <path d="M20 13 L20 20 L10 22 M20 20 L30 22" stroke="#8a5a35" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span>Grupo 7 — Árboles<small>Estructuras de datos</small></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html" data-nav="inicio">Inicio</a></li>
+      <li><a href="teoria.html" data-nav="teoria">Teoría</a></li>
+      <li><a href="modulo1.html" data-nav="m1">Módulo 1</a></li>
+      <li><a href="modulo2.html" data-nav="m2">Módulo 2</a></li>
+      <li><a href="modulo3.html" data-nav="m3">Módulo 3</a></li>
+      <li><a href="jugadores.html" data-nav="ranking" class="nav-ranking-link">🏆 Ranking</a></li>
+    </ul>
+    <span id="playerBadgeSlot"></span>
+  </div>
+</nav>
+
+<header class="hero" style="padding-bottom:8px;">
+  <div class="container">
+    <span class="eyebrow">Panel de control</span>
+    <h1 style="font-size:clamp(1.8rem,3.4vw,2.5rem);">🏆 Panel de Control de Jugadores</h1>
+    <p class="lead">Puntaje ponderado: Módulo 1 = 30% · Módulo 2 = 30% · Módulo 3 = 40%. Cada estudiante aparece aquí automáticamente al registrarse y jugar.</p>
+  </div>
+</header>
+
+<section class="section" style="padding-top:8px;">
+  <div class="container">
+
+    <div class="stat-cards">
+      <div class="stat-card">
+        <span class="stat-icon">👥</span>
+        <div class="stat-value" id="statTotal">0</div>
+        <div class="stat-label">Jugadores</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🥇</span>
+        <div class="stat-value" id="statPrimero">—</div>
+        <div class="stat-label">Primer lugar</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🥈</span>
+        <div class="stat-value" id="statSegundo">—</div>
+        <div class="stat-label">Segundo lugar</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">🥉</span>
+        <div class="stat-value" id="statTercero">—</div>
+        <div class="stat-label">Tercer lugar</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-icon">📈</span>
+        <div class="stat-value" id="statPromedio">0</div>
+        <div class="stat-label">Promedio general</div>
+      </div>
+    </div>
+
+    <div class="section-head"><h2 style="font-size:1.2rem;">Podio</h2></div>
+    <div class="podio" id="podio"></div>
+
+    <div class="section-head"><h2 style="font-size:1.2rem;">Todos los jugadores</h2></div>
+
+    <div class="panel-toolbar">
+      <div class="search-box">
+        <input type="text" id="buscadorJugador" placeholder="Buscar jugador por nombre…">
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn btn-ghost" id="nuevoJugadorBtn" type="button">➕ Nuevo jugador</button>
+        <button class="btn btn-ghost" id="exportarCSVBtn" type="button">⬇ Exportar CSV</button>
+        <button class="btn btn-ghost" id="exportarPDFBtn" type="button">⬇ Exportar PDF</button>
+        <button class="btn btn-danger" id="reiniciarRankingBtn" type="button">↺ Reiniciar ranking</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">#</th>
+            <th>Jugador</th>
+            <th class="num">Módulo 1</th>
+            <th class="num">Módulo 2</th>
+            <th class="num">Módulo 3</th>
+            <th class="num">Puntaje Final</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rankingTableBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <span>Grupo 7 · Estructuras de Datos · Tema: Árboles</span>
+    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3 → ranking</span>
+  </div>
+</footer>
+
+<script src="js/common.js"></script>
+<script src="js/ranking.js"></script>
+<script>
+  initPlayerSession();
+  initPanelJugadores();
+</script>
+</body>
+</html>

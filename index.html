@@ -27,7 +27,9 @@
       <li><a href="modulo1.html" data-nav="m1">Módulo 1</a></li>
       <li><a href="modulo2.html" data-nav="m2">Módulo 2</a></li>
       <li><a href="modulo3.html" data-nav="m3">Módulo 3</a></li>
+      <li><a href="jugadores.html" data-nav="ranking" class="nav-ranking-link">🏆 Ranking</a></li>
     </ul>
+    <span id="playerBadgeSlot"></span>
   </div>
 </nav>
 
@@ -96,17 +98,19 @@
 <section class="section">
   <div class="container info-card">
     <h2 style="font-size:1.3rem;">¿Por dónde empezar?</h2>
-    <p style="margin-bottom:0;">Si es tu primera vez con árboles binarios, visita <a href="teoria.html" style="color:var(--gold);">Teoría</a> para repasar las definiciones básicas y la terminología (altura, profundidad y relaciones entre nodos) antes de jugar.</p>
+    <p style="margin-bottom:0;">Si es tu primera vez con árboles binarios, visita <a href="teoria.html" style="color:var(--gold);">Teoría</a> para repasar las definiciones básicas y la terminología (altura, profundidad y relaciones entre nodos) antes de jugar. Cada módulo guarda tu puntaje automáticamente — revisa el <a href="jugadores.html" style="color:var(--gold);">🏆 Ranking</a> para ver cómo vas.</p>
   </div>
 </section>
 
 <footer class="site-footer">
   <div class="container">
     <span>Grupo 7 · Estructuras de Datos · Tema: Árboles</span>
-    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3</span>
+    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3 → ranking</span>
   </div>
 </footer>
 
 <script src="js/common.js"></script>
+<script src="js/ranking.js"></script>
+<script>initPlayerSession();</script>
 </body>
 </html>

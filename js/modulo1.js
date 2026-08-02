@@ -1,250 +1,226 @@
-/* ===========================================================
-   Módulo 1 · Rescata el Árbol
-   Cada partida usa un árbol distinto, pistas de relaciones
-   distintas y un cuestionario aleatorio (7 preguntas de un
-   banco de 12+ tipos). Nunca se repite igual dos veces seguidas.
-   =========================================================== */
+/* ============================================================
+   modulo1.js — "Rescata el Árbol"
+   Arrastrar (Pointer Events) los nodos sueltos hasta su lugar
+   correcto en el árbol y luego responder un cuestionario de 7
+   preguntas. El puntaje final se guarda como modulo1 (0-100).
+   ============================================================ */
 
-(function(){
-  const stage      = document.getElementById('stage');
-  const svg        = document.getElementById('lines');
-  const bank       = document.getElementById('bank');
+(function () {
+  const stage = document.getElementById('stage');
+  const svg = document.getElementById('lines');
+  const bank = document.getElementById('bank');
   const statusPill = document.getElementById('statusPill');
-  const resetBtn   = document.getElementById('resetBtn');
-  const quizWrap   = document.getElementById('quiz');
-  const questionsEl= document.getElementById('questions');
-  const finalBanner= document.getElementById('finalBanner');
+  const resetBtn = document.getElementById('resetBtn');
+  const quiz = document.getElementById('quiz');
+  const questionsEl = document.getElementById('questions');
+  const finalBanner = document.getElementById('finalBanner');
   const finalScoreEl = document.getElementById('finalScore');
 
-  let tree, ids, total, placed, score, answered;
+  const NODE_IDS = Object.keys(TREE_A.nodes);
+  let placedCount = 0;
 
-  // Panel de pistas (se inserta una sola vez)
-  let cluePanel = document.querySelector('.clue-panel');
-  if(!cluePanel){
-    cluePanel = document.createElement('div');
-    cluePanel.className = 'clue-panel';
-    bank.parentNode.insertBefore(cluePanel, bank);
+  /* ---------- Preguntas del cuestionario ---------- */
+  const PREGUNTAS = [
+    { texto: '¿Cuál es la raíz del árbol?', opciones: ['A', 'B', 'C', 'D'], correcta: 'A' },
+    { texto: '¿Cuál es la altura del árbol completo?', opciones: ['1', '2', '3', '4'], correcta: String(getTreeHeight(TREE_A)) },
+    { texto: '¿Cuál es la profundidad del nodo D?', opciones: ['0', '1', '2', '3'], correcta: String(getDepth(TREE_A, 'D')) },
+    { texto: '¿Quién es el padre de F?', opciones: ['A', 'B', 'C', 'G'], correcta: getParent(TREE_A, 'F') },
+    { texto: '¿Quién es el hijo izquierdo de la raíz?', opciones: ['A', 'B', 'C', 'D'], correcta: getChild(TREE_A, TREE_A.root, 'izquierdo') },
+    { texto: '¿Quién es hermano de D?', opciones: ['B', 'C', 'E', 'F'], correcta: getSiblings(TREE_A, 'D')[0] },
+    { texto: '¿Cuántas hojas tiene el árbol?', opciones: ['2', '3', '4', '5'], correcta: String(getLeaves(TREE_A).length) }
+  ];
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
   }
 
-  function pickTreeForRound(){
-    // Mezcla de dificultad: a veces fácil, casi siempre media, a veces difícil.
-    const r = Math.random();
-    if(r < 0.25) return randomTree('easy');
-    if(r < 0.85) return randomTree('medium');
-    return randomTree('hard');
-  }
-
-  function relationClue(id){
-    const n = tree.nodes[id];
-    const p = tree.nodes[n.parent];
-    const side = p.left === id ? 'hijo izquierdo' : 'hijo derecho';
-    return `<b>${id}</b> es el ${side} de <b>${n.parent}</b>.`;
-  }
-
-  function buildClues(){
-    const clues = [`<b>${tree.root}</b> es la raíz del árbol.`];
-    ids.filter(id => id !== tree.root).forEach(id => clues.push(relationClue(id)));
-    return shuffle(clues);
-  }
-
-  function startRound(){
-    tree = pickTreeForRound();
-    ids = Object.keys(tree.nodes);
-    total = ids.length;
-    placed = 0;
-    score = 0;
-    answered = 0;
-
-    // Reset UI
-    quizWrap.classList.remove('show');
-    finalBanner.classList.remove('show');
-    questionsEl.innerHTML = '';
-    statusPill.classList.remove('done');
-    statusPill.textContent = `0 / ${total} nodos colocados`;
-
-    // Pistas
-    cluePanel.innerHTML = `<h3>🔎 Pistas para reconstruir el árbol</h3><ul>${
-      buildClues().map(c => `<li>${c}</li>`).join('')
-    }</ul>`;
-
-    // Dibuja el esqueleto (líneas + slots vacíos)
-    drawTreeLines(svg, tree);
+  /* ---------- Construir el tablero (slots vacíos + banco de fichas) ---------- */
+  function construirTablero() {
     stage.querySelectorAll('.tree-node').forEach(n => n.remove());
-    ids.forEach(id => {
-      const n = tree.nodes[id];
-      const el = document.createElement('div');
-      el.className = 'tree-node slot';
-      el.dataset.id = id;
-      el.style.left = n.x + '%';
-      el.style.top = n.y + '%';
-      stage.appendChild(el);
+    bank.innerHTML = '';
+    placedCount = 0;
+    quiz.classList.remove('active');
+    finalBanner.classList.remove('active');
+    updateStatusPill();
+
+    drawTreeLines(svg, TREE_A);
+
+    NODE_IDS.forEach(id => {
+      const node = TREE_A.nodes[id];
+      const slot = document.createElement('div');
+      slot.className = 'tree-node slot' + (id === TREE_A.root ? ' root-node' : '');
+      slot.style.left = node.x + '%';
+      slot.style.top = node.y + '%';
+      slot.dataset.node = id;
+      stage.appendChild(slot);
     });
 
-    // Banco de fichas (chips) desordenado
-    bank.innerHTML = '';
-    shuffle(ids).forEach(id => {
+    shuffle(NODE_IDS).forEach(id => {
       const chip = document.createElement('div');
       chip.className = 'chip';
-      chip.dataset.label = id;
-      chip.textContent = id;
+      chip.textContent = TREE_A.nodes[id].label;
+      chip.dataset.node = id;
+      chip.setAttribute('tabindex', '0');
       bank.appendChild(chip);
       attachDrag(chip);
     });
   }
 
-  /* ---------- Drag & drop con Pointer Events (mouse + touch) ---------- */
-  function attachDrag(chip){
-    chip.addEventListener('pointerdown', (ev) => {
-      if(chip.classList.contains('placed')) return;
-      ev.preventDefault();
-      const rect = chip.getBoundingClientRect();
-      const ghost = chip.cloneNode(true);
-      ghost.classList.add('dragging');
-      ghost.style.width = rect.width + 'px';
-      ghost.style.height = rect.height + 'px';
-      document.body.appendChild(ghost);
-      moveGhost(ghost, ev.clientX, ev.clientY);
-      chip.style.opacity = '.25';
+  function updateStatusPill() {
+    statusPill.textContent = `${placedCount} / ${NODE_IDS.length} nodos colocados`;
+  }
 
-      function onMove(e){ moveGhost(ghost, e.clientX, e.clientY); }
-      function onUp(e){
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        ghost.remove();
-        chip.style.opacity = '';
-        const target = document.elementFromPoint(e.clientX, e.clientY);
-        const slot = target ? target.closest('.tree-node.slot') : null;
-        handleDrop(chip, slot);
+  /* ---------- Arrastrar y soltar con Pointer Events ---------- */
+  function attachDrag(chip) {
+    chip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const rect = chip.getBoundingClientRect();
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+
+      chip.setPointerCapture(e.pointerId);
+      chip.classList.add('dragging');
+      chip.style.width = rect.width + 'px';
+      document.body.appendChild(chip);
+      chip.style.position = 'fixed';
+      chip.style.left = rect.left + 'px';
+      chip.style.top = rect.top + 'px';
+      chip.style.zIndex = '999';
+
+      function onMove(ev) {
+        chip.style.left = (ev.clientX - offsetX) + 'px';
+        chip.style.top = (ev.clientY - offsetY) + 'px';
       }
-      document.addEventListener('pointermove', onMove);
-      document.addEventListener('pointerup', onUp);
+
+      function onUp(ev) {
+        chip.removeEventListener('pointermove', onMove);
+        chip.removeEventListener('pointerup', onUp);
+        chip.classList.remove('dragging');
+
+        chip.style.visibility = 'hidden';
+        const under = document.elementFromPoint(ev.clientX, ev.clientY);
+        chip.style.visibility = 'visible';
+        const slot = under ? under.closest('.slot') : null;
+
+        if (slot && !slot.classList.contains('filled')) {
+          if (slot.dataset.node === chip.dataset.node) {
+            slot.textContent = chip.textContent;
+            slot.classList.add('filled', 'correct-drop');
+            chip.remove();
+            placedCount++;
+            updateStatusPill();
+            if (placedCount === NODE_IDS.length) mostrarQuiz();
+            return;
+          } else {
+            slot.classList.add('shake');
+            setTimeout(() => slot.classList.remove('shake'), 400);
+          }
+        }
+        devolverAlBanco(chip);
+      }
+
+      chip.addEventListener('pointermove', onMove);
+      chip.addEventListener('pointerup', onUp);
+    });
+
+    // Soporte de teclado accesible: Enter coloca la ficha en el primer
+    // slot vacío correcto disponible (ayuda auxiliar, no reemplaza el drag).
+    chip.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      const slot = stage.querySelector(`.slot[data-node="${chip.dataset.node}"]`);
+      if (slot && !slot.classList.contains('filled')) {
+        slot.textContent = chip.textContent;
+        slot.classList.add('filled', 'correct-drop');
+        chip.remove();
+        placedCount++;
+        updateStatusPill();
+        if (placedCount === NODE_IDS.length) mostrarQuiz();
+      }
     });
   }
-  function moveGhost(ghost, x, y){
-    ghost.style.left = (x - ghost.offsetWidth / 2) + 'px';
-    ghost.style.top  = (y - ghost.offsetHeight / 2) + 'px';
-  }
 
-  function handleDrop(chip, slot){
-    if(!slot || slot.classList.contains('filled')){
-      shake(chip); return;
-    }
-    const label = chip.dataset.label;
-    if(slot.dataset.id === label){
-      slot.classList.add('filled');
-      slot.textContent = label;
-      if(label === tree.root) slot.classList.add('root-node');
-      chip.classList.add('placed');
-      placed++;
-      statusPill.textContent = `${placed} / ${total} nodos colocados`;
-      showToast(`¡Correcto! ${label} en su lugar.`, 'ok');
-      if(placed === total){
-        statusPill.classList.add('done');
-        statusPill.textContent = `¡Árbol completo! (${total}/${total})`;
-        launchQuiz();
-      }
-    } else {
-      shake(chip);
-      showToast('Ese nodo no va ahí. Revisa las pistas.', 'bad');
-    }
-  }
-  function shake(chip){
-    chip.classList.add('wrong');
-    setTimeout(() => chip.classList.remove('wrong'), 350);
+  function devolverAlBanco(chip) {
+    chip.style.position = '';
+    chip.style.left = '';
+    chip.style.top = '';
+    chip.style.width = '';
+    chip.style.zIndex = '';
+    bank.appendChild(chip);
   }
 
   /* ---------- Cuestionario ---------- */
-  let totalQuestions = 7;
-  function launchQuiz(){
-    const questions = generateQuestions(tree, 7);
-    totalQuestions = questions.length;
+  let respuestasCorrectas = 0;
+  let respondidas = 0;
+
+  function mostrarQuiz() {
+    respuestasCorrectas = 0;
+    respondidas = 0;
     questionsEl.innerHTML = '';
-    questions.forEach((q, idx) => renderQuestion(q, idx));
-    quizWrap.classList.add('show');
-    quizWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+    quiz.classList.add('active');
+    finalBanner.classList.remove('active');
 
-  function renderQuestion(q, idx){
-    const card = document.createElement('div');
-    card.className = 'q-card';
-    const normalizedAnswer = String(q.answer).trim().toLowerCase();
+    PREGUNTAS.forEach((p, i) => {
+      const opciones = shuffle(p.opciones);
+      const wrap = document.createElement('div');
+      wrap.className = 'quiz-question';
+      wrap.innerHTML = `
+        <p class="quiz-question-text">${i + 1}. ${p.texto}</p>
+        <div class="quiz-options">
+          ${opciones.map(op => `
+            <label class="quiz-option">
+              <input type="radio" name="q${i}" value="${op}">
+              <span>${op}</span>
+            </label>`).join('')}
+        </div>
+        <p class="quiz-feedback" id="feedback${i}"></p>
+      `;
+      questionsEl.appendChild(wrap);
 
-    let inner = `<div class="q-meta">${q.meta} · Pregunta ${idx + 1}</div><div class="q-prompt">${q.prompt}</div>`;
-
-    if(q.kind === 'mc'){
-      inner += `<div class="q-options">${
-        q.options.map(opt => `<button class="q-opt" data-val="${opt}">${opt}</button>`).join('')
-      }</div><div class="q-feedback"></div>`;
-      card.innerHTML = inner;
-      const feedback = card.querySelector('.q-feedback');
-      card.querySelectorAll('.q-opt').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if(answered > idx) return; // ya respondida
-          const val = btn.dataset.val.trim().toLowerCase();
-          const opts = card.querySelectorAll('.q-opt');
-          opts.forEach(o => o.classList.add('disabled'));
-          if(val === normalizedAnswer){
-            btn.classList.add('correct');
-            feedback.textContent = '✓ ¡Correcto!';
-            feedback.className = 'q-feedback ok';
-            score++;
-          } else {
-            btn.classList.add('incorrect');
-            opts.forEach(o => { if(o.dataset.val.trim().toLowerCase() === normalizedAnswer) o.classList.add('correct'); });
-            feedback.textContent = `✗ Incorrecto. Respuesta: ${q.answer}`;
-            feedback.className = 'q-feedback bad';
-          }
-          registerAnswered();
-        });
+      wrap.querySelectorAll('input[type="radio"]').forEach(input => {
+        input.addEventListener('change', () => onResponder(i, p, input.value, wrap));
       });
+    });
+
+    quiz.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function onResponder(index, pregunta, valor, wrap) {
+    wrap.querySelectorAll('input[type="radio"]').forEach(inp => (inp.disabled = true));
+    const feedback = wrap.querySelector(`#feedback${index}`);
+    const esCorrecta = valor === pregunta.correcta;
+    if (esCorrecta) {
+      respuestasCorrectas++;
+      feedback.textContent = '✔ ¡Correcto!';
+      feedback.classList.add('ok');
     } else {
-      inner += `<div class="q-input-row">
-        <input type="text" placeholder="Tu respuesta" />
-        <button class="q-check-btn">Verificar</button>
-      </div><div class="q-feedback"></div>`;
-      card.innerHTML = inner;
-      const input = card.querySelector('input');
-      const btn = card.querySelector('.q-check-btn');
-      const feedback = card.querySelector('.q-feedback');
-      function check(){
-        if(btn.disabled) return;
-        const val = input.value.trim().toLowerCase();
-        input.disabled = true; btn.disabled = true;
-        if(val === normalizedAnswer){
-          feedback.textContent = '✓ ¡Correcto!';
-          feedback.className = 'q-feedback ok';
-          score++;
-        } else {
-          feedback.textContent = `✗ Incorrecto. Respuesta: ${q.answer}`;
-          feedback.className = 'q-feedback bad';
-        }
-        registerAnswered();
-      }
-      btn.addEventListener('click', check);
-      input.addEventListener('keydown', e => { if(e.key === 'Enter') check(); });
+      feedback.textContent = `✗ La respuesta correcta era "${pregunta.correcta}".`;
+      feedback.classList.add('bad');
     }
-    questionsEl.appendChild(card);
+    respondidas++;
+    if (respondidas === PREGUNTAS.length) finalizarModulo();
   }
 
-  let answeredCount = 0;
-  function registerAnswered(){
-    answeredCount++;
-    answered = answeredCount;
-    if(answeredCount >= totalQuestions){
-      finishQuiz();
+  function finalizarModulo() {
+    finalScoreEl.textContent = respuestasCorrectas;
+    finalBanner.classList.add('active');
+
+    const jugador = getJugadorActual();
+    if (jugador) {
+      const pct = Math.round((respuestasCorrectas / PREGUNTAS.length) * 100);
+      actualizarJugador(jugador, 'modulo1', pct);
     }
-  }
-  function finishQuiz(){
-    finalScoreEl.textContent = score;
-    finalBanner.querySelector('strong').innerHTML = `Puntaje final: <span id="finalScore">${score}</span> / ${totalQuestions}`;
-    finalBanner.classList.add('show');
-    if(score >= Math.ceil(totalQuestions * 0.7)) confettiBurst(70);
+    finalBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  resetBtn.addEventListener('click', () => {
-    answeredCount = 0;
-    startRound();
-  });
+  /* ---------- Eventos ---------- */
+  resetBtn.addEventListener('click', construirTablero);
 
-  startRound();
+  /* ---------- Arranque ---------- */
+  initPlayerSession(() => construirTablero());
 })();

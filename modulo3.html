@@ -23,7 +23,9 @@
       <li><a href="modulo1.html" data-nav="m1">Módulo 1</a></li>
       <li><a href="modulo2.html" data-nav="m2">Módulo 2</a></li>
       <li><a href="modulo3.html" data-nav="m3">Módulo 3</a></li>
+      <li><a href="jugadores.html" data-nav="ranking" class="nav-ranking-link">🏆 Ranking</a></li>
     </ul>
+    <span id="playerBadgeSlot"></span>
   </div>
 </nav>
 
@@ -31,7 +33,7 @@
   <div class="container">
     <span class="eyebrow">Módulo 03 · Calcular</span>
     <h1 style="font-size:clamp(1.8rem,3.4vw,2.5rem);">🚪 Escape Room</h1>
-    <p class="lead">La puerta tiene un código de 3 dígitos. Calcula la altura del árbol, la profundidad del nodo D y el número de hojas para descifrarlo.</p>
+    <p class="lead">La puerta tiene un código de 3 dígitos. Calcula la altura del árbol, la profundidad del nodo marcado con ★ y el número de hojas para descifrarlo.</p>
   </div>
 </header>
 
@@ -71,7 +73,7 @@
         <p>Introduce el código de 3 dígitos que resulta de tus respuestas.</p>
         <div class="code-display" id="codeDisplay">_ _ _</div>
         <p class="attempts" id="attempts">Intentos: 0</p>
-        <button class="btn btn-ghost" id="openBtn" type="button">Abrir puerta</button>
+        <button class="btn btn-ghost" id="openBtn" type="button" disabled>Abrir puerta</button>
       </div>
     </div>
 
@@ -80,7 +82,7 @@
       <p style="margin:8px 0 0;" id="finalBannerDetail"></p>
       <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn btn-ghost" id="newRoomBtn" type="button">↺ Otra sala</button>
-        <a href="index.html" class="btn btn-primary">Volver al inicio</a>
+        <a href="jugadores.html" class="btn btn-primary">Ver el ranking →</a>
       </div>
     </div>
   </div>
@@ -89,11 +91,12 @@
 <footer class="site-footer">
   <div class="container">
     <span>Grupo 7 · Estructuras de Datos · Tema: Árboles</span>
-    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3</span>
+    <span class="mono">index → teoría → módulo 1 → módulo 2 → módulo 3 → ranking</span>
   </div>
 </footer>
 
 <script src="js/common.js"></script>
+<script src="js/ranking.js"></script>
 <script src="js/modulo3.js"></script>
 </body>
 </html>

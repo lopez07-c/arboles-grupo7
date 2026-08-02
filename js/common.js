@@ -1,415 +1,205 @@
-/* ===========================================================
-   Grupo 7 · Árboles — common.js
-   Datos de los árboles + utilidades compartidas por los 3 módulos.
-   =========================================================== */
+/* ============================================================
+   common.js
+   Datos del árbol compartidos por todas las páginas + utilidades
+   de geometría del árbol + sesión de jugador (nombre actual).
+   ============================================================ */
 
-/* ---------- Helpers genéricos ---------- */
-function shuffle(arr){
-  const a = arr.slice();
-  for(let i = a.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+/* ---------- 1. Datos del árbol de referencia ----------
+   Árbol binario usado en teoria.html, modulo1.html y modulo2.html.
+   Posiciones en porcentaje (x, y) dentro de #stage para que el
+   layout sea responsive sin recalcular en JS.
+------------------------------------------------------------- */
+const TREE_A = {
+  root: 'A',
+  nodes: {
+    A: { label: 'A', x: 50, y: 8  },
+    B: { label: 'B', x: 25, y: 45 },
+    C: { label: 'C', x: 75, y: 45 },
+    D: { label: 'D', x: 10, y: 84 },
+    E: { label: 'E', x: 40, y: 84 },
+    F: { label: 'F', x: 60, y: 84 },
+    G: { label: 'G', x: 90, y: 84 }
+  },
+  edges: [
+    ['A', 'B'], ['A', 'C'],
+    ['B', 'D'], ['B', 'E'],
+    ['C', 'F'], ['C', 'G']
+  ]
+};
+
+/* ---------- 2. Utilidades de geometría del árbol ---------- */
+
+/** Devuelve un mapa { padre: [hijoIzq, hijoDer] } a partir de las aristas. */
+function getChildrenMap(tree) {
+  const map = {};
+  Object.keys(tree.nodes).forEach(id => (map[id] = []));
+  tree.edges.forEach(([parent, child]) => map[parent].push(child));
+  return map;
+}
+
+/** Devuelve un mapa { hijo: padre } a partir de las aristas. */
+function getParentMap(tree) {
+  const map = {};
+  tree.edges.forEach(([parent, child]) => (map[child] = parent));
+  return map;
+}
+
+/** Profundidad de un nodo: nº de aristas desde la raíz hasta él. */
+function getDepth(tree, nodeId) {
+  const parentMap = getParentMap(tree);
+  let depth = 0;
+  let current = nodeId;
+  while (parentMap[current] !== undefined) {
+    depth++;
+    current = parentMap[current];
   }
-  return a;
-}
-function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
-function pickN(arr, n){ return shuffle(arr).slice(0, n); }
-
-/* ---------- Construcción y layout de árboles ---------- */
-// def: { label, left: def|null, right: def|null }
-function buildTree(def){
-  const nodes = {};
-  function walk(node, parent){
-    if(!node) return null;
-    nodes[node.label] = {
-      label: node.label,
-      parent: parent,
-      left: node.left ? node.left.label : null,
-      right: node.right ? node.right.label : null
-    };
-    if(node.left) walk(node.left, node.label);
-    if(node.right) walk(node.right, node.label);
-    return node.label;
-  }
-  const root = walk(def, null);
-  const tree = { root, nodes };
-  layoutTree(tree);
-  return tree;
+  return depth;
 }
 
-// Calcula x,y (0-100) por recorrido in-order (x) y profundidad (y), y guarda depth en cada nodo.
-function layoutTree(tree){
-  const nodes = tree.nodes;
-  let counter = 0;
-  const order = {};
-  (function inorder(id){
-    if(!id) return;
-    const n = nodes[id];
-    inorder(n.left);
-    order[id] = counter++;
-    inorder(n.right);
-  })(tree.root);
-  const total = counter;
-
-  function depthOf(id){
-    let d = 0, cur = id;
-    while(nodes[cur].parent){ cur = nodes[cur].parent; d++; }
-    return d;
-  }
-  let maxDepth = 0;
-  Object.keys(nodes).forEach(id => { maxDepth = Math.max(maxDepth, depthOf(id)); });
-
-  Object.keys(nodes).forEach(id => {
-    const n = nodes[id];
-    n.x = total <= 1 ? 50 : 8 + (order[id] / (total - 1)) * 84;
-    n.depth = depthOf(id);
-    n.y = maxDepth <= 0 ? 50 : 10 + (n.depth / maxDepth) * 80;
-  });
-  tree.maxDepth = maxDepth;
-  tree.count = total;
+/** Altura de un nodo: camino más largo hasta una hoja de su subárbol. */
+function getHeight(tree, nodeId) {
+  const childrenMap = getChildrenMap(tree);
+  const children = childrenMap[nodeId] || [];
+  if (children.length === 0) return 0;
+  return 1 + Math.max(...children.map(c => getHeight(tree, c)));
 }
 
-/* ---------- Consultas sobre el árbol ---------- */
-function children(tree, id){
-  const n = tree.nodes[id];
-  return [n.left, n.right].filter(Boolean);
+/** Altura del árbol completo = altura de la raíz. */
+function getTreeHeight(tree) {
+  return getHeight(tree, tree.root);
 }
-function isLeaf(tree, id){ return children(tree, id).length === 0; }
-function leaves(tree){ return Object.keys(tree.nodes).filter(id => isLeaf(tree, id)); }
-function siblings(tree, id){
-  const p = tree.nodes[id].parent;
-  if(!p) return [];
-  return children(tree, p).filter(c => c !== id);
-}
-function ancestors(tree, id){
-  const out = [];
-  let cur = tree.nodes[id].parent;
-  while(cur){ out.push(cur); cur = tree.nodes[cur].parent; }
-  return out;
-}
-function descendants(tree, id){
-  const out = [];
-  (function walk(cid){
-    children(tree, cid).forEach(c => { out.push(c); walk(c); });
-  })(id);
-  return out;
-}
-function heightOf(tree, id){
-  const n = tree.nodes[id];
-  if(!n.left && !n.right) return 0;
-  const hl = n.left ? heightOf(tree, n.left) : -1;
-  const hr = n.right ? heightOf(tree, n.right) : -1;
-  return 1 + Math.max(hl, hr);
-}
-function treeHeight(tree){ return heightOf(tree, tree.root); }
-function subtreeSize(tree, id){ return 1 + descendants(tree, id).length; }
 
-/* ---------- Dibuja las aristas del árbol en un <svg> ---------- */
-function drawTreeLines(svg, tree, opts){
-  opts = opts || {};
+/** Lista de ids de las hojas del árbol (nodos sin hijos). */
+function getLeaves(tree) {
+  const childrenMap = getChildrenMap(tree);
+  return Object.keys(tree.nodes).filter(id => childrenMap[id].length === 0);
+}
+
+/** Hermanos de un nodo: otros hijos de su mismo padre. */
+function getSiblings(tree, nodeId) {
+  const parentMap = getParentMap(tree);
+  const childrenMap = getChildrenMap(tree);
+  const parent = parentMap[nodeId];
+  if (parent === undefined) return [];
+  return childrenMap[parent].filter(id => id !== nodeId);
+}
+
+/** Padre de un nodo (o null si es la raíz). */
+function getParent(tree, nodeId) {
+  const parentMap = getParentMap(tree);
+  return parentMap[nodeId] !== undefined ? parentMap[nodeId] : null;
+}
+
+/** Hijo izquierdo / derecho de un nodo (según el orden de las aristas). */
+function getChild(tree, nodeId, side) {
+  const childrenMap = getChildrenMap(tree);
+  const children = childrenMap[nodeId] || [];
+  if (side === 'izquierdo') return children[0] || null;
+  if (side === 'derecho') return children[1] || null;
+  return null;
+}
+
+/** Dibuja las líneas (aristas) del árbol dentro de un <svg>. */
+function drawTreeLines(svg, tree) {
   svg.setAttribute('viewBox', '0 0 100 100');
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.innerHTML = '';
-  Object.values(tree.nodes).forEach(n => {
-    if(!n.parent) return;
-    const p = tree.nodes[n.parent];
+  tree.edges.forEach(([parentId, childId]) => {
+    const p = tree.nodes[parentId];
+    const c = tree.nodes[childId];
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', p.x); line.setAttribute('y1', p.y);
-    line.setAttribute('x2', n.x); line.setAttribute('y2', n.y);
-    line.setAttribute('class', 'tree-edge' + (opts.litEdge && opts.litEdge(n.label) ? ' lit' : ''));
+    line.setAttribute('x1', p.x);
+    line.setAttribute('y1', p.y + 3);
+    line.setAttribute('x2', c.x);
+    line.setAttribute('y2', c.y - 3);
+    line.setAttribute('class', 'edge-line');
     line.setAttribute('vector-effect', 'non-scaling-stroke');
     svg.appendChild(line);
   });
 }
 
-/* ---------- Árbol de referencia (usado en teoria.html) ---------- */
-const TREE_A = buildTree({
-  label: 'A',
-  left:  { label: 'B', left: { label: 'D' }, right: { label: 'E' } },
-  right: { label: 'C', left: { label: 'F' }, right: { label: 'G' } }
-});
+/* ---------- 3. Sesión de jugador ----------
+   Antes de jugar, cada estudiante se identifica con su nombre.
+   Si ya existe en localStorage, se recupera su progreso; si no,
+   se crea un registro nuevo. El nombre activo se guarda en
+   localStorage bajo 'jugadorActual' para no volver a preguntar
+   en cada página durante la misma sesión de navegación.
+------------------------------------------------------------- */
 
-/* ---------- Banco de árboles para los juegos (variedad + dificultad) ---------- */
-// P1: fácil — 7 nodos, completo, altura 2
-const TREE_POOL_EASY = [
-  buildTree({
-    label: 'A',
-    left:  { label: 'B', left: { label: 'D' }, right: { label: 'E' } },
-    right: { label: 'C', left: { label: 'F' }, right: { label: 'G' } }
-  }),
-  buildTree({
-    label: 'M',
-    left:  { label: 'N', left: { label: 'P' }, right: { label: 'Q' } },
-    right: { label: 'O', right: { label: 'R' } }
-  })
-];
+const RANKING_KEY = 'jugadores';
+const SESSION_KEY = 'jugadorActual';
 
-// P2/P3: media — 8-9 nodos, con nodos de un solo hijo, altura 3
-const TREE_POOL_MEDIUM = [
-  buildTree({
-    label: 'A',
-    left: {
-      label: 'B',
-      left: { label: 'D', right: { label: 'H' } },
-      right: { label: 'E' }
-    },
-    right: {
-      label: 'C',
-      right: { label: 'F', right: { label: 'G' } }
-    }
-  }),
-  buildTree({
-    label: 'A',
-    left: {
-      label: 'B',
-      left: { label: 'D', left: { label: 'I' } },
-      right: { label: 'E' }
-    },
-    right: {
-      label: 'C',
-      left: { label: 'F' },
-      right: { label: 'G', right: { label: 'H' } }
-    }
-  })
-];
-
-// P4: difícil — 11 nodos, altura 4
-const TREE_POOL_HARD = [
-  buildTree({
-    label: 'A',
-    left: {
-      label: 'B',
-      left: {
-        label: 'D',
-        left: { label: 'I', right: { label: 'K' } }
-      },
-      right: { label: 'E', right: { label: 'J' } }
-    },
-    right: {
-      label: 'C',
-      left: { label: 'F' },
-      right: { label: 'G', right: { label: 'H' } }
-    }
-  })
-];
-
-function randomTree(level){
-  if(level === 'easy') return structuredCloneTree(pick(TREE_POOL_EASY));
-  if(level === 'hard') return structuredCloneTree(pick(TREE_POOL_HARD));
-  if(level === 'any')  return structuredCloneTree(pick([].concat(TREE_POOL_EASY, TREE_POOL_MEDIUM, TREE_POOL_HARD)));
-  return structuredCloneTree(pick(TREE_POOL_MEDIUM));
-}
-// Clona un árbol (los módulos mutan el objeto, así que cada partida necesita copia propia)
-function structuredCloneTree(tree){
-  return JSON.parse(JSON.stringify(tree));
+function normalizarNombre(nombre) {
+  return nombre.trim().replace(/\s+/g, ' ');
 }
 
-/* ---------- Banco de preguntas (Módulo 1) ----------
-   Cada generador recibe el árbol y devuelve una pregunta o null si no aplica.
-   Se mezclan tipo texto y opción múltiple para variar el formato. */
-const QUESTION_GENERATORS = [
-
-  function qRoot(tree){
-    return {
-      kind: 'text', meta: 'Raíz',
-      prompt: '¿Cuál nodo es la raíz del árbol?',
-      answer: tree.root
-    };
-  },
-
-  function qHeightTree(tree){
-    return {
-      kind: 'mc', meta: 'Altura',
-      prompt: '¿Cuál es la altura del árbol completo?',
-      answer: String(treeHeight(tree)),
-      options: makeNumberOptions(treeHeight(tree))
-    };
-  },
-
-  function qLeavesCount(tree){
-    const n = leaves(tree).length;
-    return {
-      kind: 'mc', meta: 'Hojas',
-      prompt: '¿Cuántas hojas tiene el árbol?',
-      answer: String(n),
-      options: makeNumberOptions(n)
-    };
-  },
-
-  function qDepthNode(tree){
-    const id = pick(Object.keys(tree.nodes).filter(x => x !== tree.root));
-    return {
-      kind: 'mc', meta: 'Profundidad',
-      prompt: `¿Cuál es la profundidad del nodo ${id}?`,
-      answer: String(tree.nodes[id].depth),
-      options: makeNumberOptions(tree.nodes[id].depth)
-    };
-  },
-
-  function qParentNode(tree){
-    const candidates = Object.keys(tree.nodes).filter(x => x !== tree.root);
-    const id = pick(candidates);
-    return {
-      kind: 'text', meta: 'Padre',
-      prompt: `¿Cuál nodo es el padre de ${id}?`,
-      answer: tree.nodes[id].parent
-    };
-  },
-
-  function qSiblingsNode(tree){
-    const id = pick(Object.keys(tree.nodes).filter(x => x !== tree.root));
-    const sibs = siblings(tree, id);
-    return {
-      kind: 'text', meta: 'Hermanos',
-      prompt: `¿Cuál es el hermano de ${id}? (si no tiene, escribe "ninguno")`,
-      answer: sibs.length ? sibs[0] : 'ninguno'
-    };
-  },
-
-  function qIsLeaf(tree){
-    const id = pick(Object.keys(tree.nodes));
-    const answer = isLeaf(tree, id) ? 'sí' : 'no';
-    return {
-      kind: 'mc', meta: 'Hojas',
-      prompt: `¿El nodo ${id} es una hoja?`,
-      answer,
-      options: ['sí', 'no']
-    };
-  },
-
-  function qChildrenCount(tree){
-    const id = pick(Object.keys(tree.nodes));
-    const n = children(tree, id).length;
-    return {
-      kind: 'mc', meta: 'Hijos',
-      prompt: `¿Cuántos hijos tiene el nodo ${id}?`,
-      answer: String(n),
-      options: ['0', '1', '2']
-    };
-  },
-
-  function qLevelNode(tree){
-    const id = pick(Object.keys(tree.nodes).filter(x => x !== tree.root));
-    return {
-      kind: 'mc', meta: 'Nivel',
-      prompt: `¿En qué nivel se encuentra el nodo ${id}? (la raíz está en el nivel 0)`,
-      answer: String(tree.nodes[id].depth),
-      options: makeNumberOptions(tree.nodes[id].depth)
-    };
-  },
-
-  function qAncestorsCount(tree){
-    const candidates = Object.keys(tree.nodes).filter(x => tree.nodes[x].depth >= 2);
-    if(!candidates.length) return null;
-    const id = pick(candidates);
-    const n = ancestors(tree, id).length;
-    return {
-      kind: 'mc', meta: 'Ancestros',
-      prompt: `¿Cuántos ancestros tiene el nodo ${id} (incluyendo la raíz)?`,
-      answer: String(n),
-      options: makeNumberOptions(n)
-    };
-  },
-
-  function qSubtreeSize(tree){
-    const candidates = Object.keys(tree.nodes).filter(x => !isLeaf(tree, x));
-    if(!candidates.length) return null;
-    const id = pick(candidates);
-    const n = subtreeSize(tree, id);
-    return {
-      kind: 'mc', meta: 'Subárbol',
-      prompt: `Contando al propio nodo, ¿cuántos nodos forman el subárbol de ${id}?`,
-      answer: String(n),
-      options: makeNumberOptions(n)
-    };
-  },
-
-  function qIsAncestor(tree){
-    const ids = Object.keys(tree.nodes);
-    const a = pick(ids);
-    const descA = descendants(tree, a);
-    let b;
-    if(Math.random() < 0.5 && descA.length){
-      b = pick(descA);
-    } else {
-      const others = ids.filter(x => x !== a && !descA.includes(x));
-      if(!others.length) return null;
-      b = pick(others);
-    }
-    const answer = descendants(tree, a).includes(b) ? 'sí' : 'no';
-    return {
-      kind: 'mc', meta: 'Ancestro / descendiente',
-      prompt: `¿Es ${a} un ancestro de ${b}?`,
-      answer,
-      options: ['sí', 'no']
-    };
-  },
-
-  function qDeepestSide(tree){
-    if(!tree.nodes[tree.root].left || !tree.nodes[tree.root].right) return null;
-    const l = tree.nodes[tree.root].left, r = tree.nodes[tree.root].right;
-    const hl = heightOf(tree, l), hr = heightOf(tree, r);
-    if(hl === hr) return null;
-    return {
-      kind: 'mc', meta: 'Comparar subárboles',
-      prompt: '¿Cuál subárbol de la raíz tiene mayor altura?',
-      answer: hl > hr ? `el de ${l}` : `el de ${r}`,
-      options: [`el de ${l}`, `el de ${r}`]
-    };
+/** Muestra (si hace falta) el modal de identificación y devuelve
+ *  el nombre del jugador activo vía callback `onReady(nombre)`. */
+function initPlayerSession(onReady) {
+  const actual = localStorage.getItem(SESSION_KEY);
+  if (actual) {
+    renderPlayerBadge(actual);
+    if (onReady) onReady(actual);
+    return;
   }
-];
-
-function makeNumberOptions(correct){
-  const set = new Set([correct]);
-  while(set.size < 3){
-    const delta = pick([-2, -1, 1, 2]);
-    const v = correct + delta;
-    if(v >= 0) set.add(v);
-  }
-  return shuffle(Array.from(set).map(String));
+  mostrarModalJugador((nombre) => {
+    localStorage.setItem(SESSION_KEY, nombre);
+    if (typeof guardarJugador === 'function') guardarJugador(nombre);
+    renderPlayerBadge(nombre);
+    if (onReady) onReady(nombre);
+  });
 }
 
-// Genera `n` preguntas distintas y variadas para un árbol dado.
-function generateQuestions(tree, n){
-  n = n || 7;
-  const gens = shuffle(QUESTION_GENERATORS);
-  const out = [];
-  let i = 0;
-  while(out.length < n && i < gens.length * 2){
-    const g = gens[i % gens.length];
-    const q = g(tree);
-    i++;
-    if(q && !out.some(x => x.prompt === q.prompt)) out.push(q);
-  }
-  return out;
+/** Crea y muestra el modal de "¿Quién juega?". */
+function mostrarModalJugador(onSubmit) {
+  const overlay = document.createElement('div');
+  overlay.className = 'player-modal-overlay';
+  overlay.innerHTML = `
+    <div class="player-modal" role="dialog" aria-modal="true" aria-labelledby="playerModalTitle">
+      <span class="player-modal-icon">🌳</span>
+      <h2 id="playerModalTitle">¿Quién va a jugar?</h2>
+      <p>Escribe tu nombre para guardar tu progreso y aparecer en el ranking.</p>
+      <form id="playerModalForm">
+        <input type="text" id="playerModalInput" placeholder="Tu nombre" autocomplete="off" required maxlength="40">
+        <button type="submit" class="btn btn-primary">Empezar a jugar →</button>
+      </form>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#playerModalInput');
+  const form = overlay.querySelector('#playerModalForm');
+  setTimeout(() => input.focus(), 50);
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nombre = normalizarNombre(input.value);
+    if (!nombre) return;
+    overlay.remove();
+    onSubmit(nombre);
+  });
 }
 
-/* ---------- Efectos visuales compartidos ---------- */
-function confettiBurst(count){
-  count = count || 60;
-  const colors = ['#eab54c', '#f6d38a', '#5fae74', '#3c7350', '#ffffff'];
-  for(let i = 0; i < count; i++){
-    const el = document.createElement('div');
-    el.className = 'confetti-piece';
-    el.style.left = (Math.random() * 100) + 'vw';
-    el.style.background = pick(colors);
-    el.style.animationDuration = (1.4 + Math.random() * 1.4) + 's';
-    el.style.transform = `rotate(${Math.random() * 360}deg)`;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 3200);
+/** Muestra el nombre del jugador activo en la barra de navegación,
+ *  con un enlace para cambiar de jugador. */
+function renderPlayerBadge(nombre) {
+  const slot = document.getElementById('playerBadgeSlot');
+  if (!slot) return;
+  slot.innerHTML = `
+    <span class="player-badge">
+      <span class="player-badge-dot"></span>
+      ${nombre}
+      <button type="button" id="switchPlayerBtn" class="player-badge-switch" title="Cambiar de jugador">⇄</button>
+    </span>`;
+  const switchBtn = slot.querySelector('#switchPlayerBtn');
+  if (switchBtn) {
+    switchBtn.addEventListener('click', () => {
+      localStorage.removeItem(SESSION_KEY);
+      location.reload();
+    });
   }
 }
 
-let toastTimer = null;
-function showToast(msg, type){
-  let el = document.querySelector('.toast');
-  if(!el){
-    el = document.createElement('div');
-    el.className = 'toast';
-    document.body.appendChild(el);
-  }
-  el.textContent = msg;
-  el.className = 'toast show ' + (type || '');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+/** Devuelve el nombre del jugador activo (o null si no hay sesión). */
+function getJugadorActual() {
+  return localStorage.getItem(SESSION_KEY);
 }
