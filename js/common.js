@@ -1,205 +1,314 @@
 /* ============================================================
-   common.js
-   Datos del árbol compartidos por todas las páginas + utilidades
-   de geometría del árbol + sesión de jugador (nombre actual).
+   common.js — Grupo 7 · Árboles
+   Datos y utilidades compartidas por todas las páginas:
+   - Árbol de referencia fijo (usado en teoria.html)
+   - Generador de árboles ALEATORIOS (estructura + letras) para
+     los módulos 1, 2 y 3, de modo que cada partida sea distinta.
+   - Funciones de geometría: altura, profundidad, hojas, hermanos,
+     ancestros — una sola fuente de verdad para todo el proyecto.
+   - Dibujo de las líneas del árbol en <svg>.
+   - Niveles de dificultad compartidos (fácil / medio / difícil).
+   - Sesión del jugador activo (localStorage) + badge en el navbar.
    ============================================================ */
 
-/* ---------- 1. Datos del árbol de referencia ----------
-   Árbol binario usado en teoria.html, modulo1.html y modulo2.html.
-   Posiciones en porcentaje (x, y) dentro de #stage para que el
-   layout sea responsive sin recalcular en JS.
-------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   Árbol de referencia FIJO — solo para teoria.html, para que las
+   definiciones ("la raíz es A", "la altura es 2"...) tengan siempre
+   el mismo ejemplo concreto delante del estudiante.
+--------------------------------------------------------------- */
 const TREE_A = {
   root: 'A',
   nodes: {
-    A: { label: 'A', x: 50, y: 8  },
-    B: { label: 'B', x: 25, y: 45 },
-    C: { label: 'C', x: 75, y: 45 },
-    D: { label: 'D', x: 10, y: 84 },
-    E: { label: 'E', x: 40, y: 84 },
-    F: { label: 'F', x: 60, y: 84 },
-    G: { label: 'G', x: 90, y: 84 }
+    A: { label: 'A', x: 50, y: 12, parent: null, left: 'B', right: 'C' },
+    B: { label: 'B', x: 25, y: 50, parent: 'A', left: 'D', right: 'E' },
+    C: { label: 'C', x: 75, y: 50, parent: 'A', left: 'F', right: 'G' },
+    D: { label: 'D', x: 12, y: 88, parent: 'B', left: null, right: null },
+    E: { label: 'E', x: 38, y: 88, parent: 'B', left: null, right: null },
+    F: { label: 'F', x: 62, y: 88, parent: 'C', left: null, right: null },
+    G: { label: 'G', x: 88, y: 88, parent: 'C', left: null, right: null },
   },
-  edges: [
-    ['A', 'B'], ['A', 'C'],
-    ['B', 'D'], ['B', 'E'],
-    ['C', 'F'], ['C', 'G']
-  ]
 };
 
-/* ---------- 2. Utilidades de geometría del árbol ---------- */
+/* ---------------------------------------------------------------
+   Dificultad compartida: cada pregunta de cada módulo declara un
+   nivel; esto define cuántos puntos vale y cómo se ve su etiqueta.
+--------------------------------------------------------------- */
+const DIFICULTAD = {
+  facil: { label: 'Fácil', puntos: 10, clase: 'dif-facil', icono: '🟢' },
+  medio: { label: 'Medio', puntos: 15, clase: 'dif-medio', icono: '🟡' },
+  dificil: { label: 'Difícil', puntos: 25, clase: 'dif-dificil', icono: '🔴' },
+};
 
-/** Devuelve un mapa { padre: [hijoIzq, hijoDer] } a partir de las aristas. */
-function getChildrenMap(tree) {
-  const map = {};
-  Object.keys(tree.nodes).forEach(id => (map[id] = []));
-  tree.edges.forEach(([parent, child]) => map[parent].push(child));
-  return map;
-}
+const POOL_LETRAS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U'];
 
-/** Devuelve un mapa { hijo: padre } a partir de las aristas. */
-function getParentMap(tree) {
-  const map = {};
-  tree.edges.forEach(([parent, child]) => (map[child] = parent));
-  return map;
-}
-
-/** Profundidad de un nodo: nº de aristas desde la raíz hasta él. */
-function getDepth(tree, nodeId) {
-  const parentMap = getParentMap(tree);
-  let depth = 0;
-  let current = nodeId;
-  while (parentMap[current] !== undefined) {
-    depth++;
-    current = parentMap[current];
+function barajar(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return depth;
+  return a;
 }
 
-/** Altura de un nodo: camino más largo hasta una hoja de su subárbol. */
-function getHeight(tree, nodeId) {
-  const childrenMap = getChildrenMap(tree);
-  const children = childrenMap[nodeId] || [];
-  if (children.length === 0) return 0;
-  return 1 + Math.max(...children.map(c => getHeight(tree, c)));
+function elegirAleatorio(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/** Altura del árbol completo = altura de la raíz. */
-function getTreeHeight(tree) {
-  return getHeight(tree, tree.root);
+/* ---------------------------------------------------------------
+   Generador de estructuras aleatorias (sin etiquetas todavía).
+   - La raíz siempre tiene 2 hijos (para que "raíz", "hijo izq/der"
+     tengan siempre sentido).
+   - Cada hijo de nivel 1 tiene 0, 1 o 2 hijos propios (pesado hacia
+     1-2 para casi siempre obtener árboles de 5 a 7 nodos y altura 2).
+--------------------------------------------------------------- */
+function generarEstructuraAleatoria() {
+  let intento = 0;
+  while (true) {
+    intento++;
+    const nodes = {};
+    let contador = 0;
+    function nuevoNodo(parent) {
+      const id = 'n' + contador++;
+      nodes[id] = { id, parent, left: null, right: null };
+      return id;
+    }
+    const rootId = nuevoNodo(null);
+    const bId = nuevoNodo(rootId);
+    const cId = nuevoNodo(rootId);
+    nodes[rootId].left = bId;
+    nodes[rootId].right = cId;
+
+    function hijosAleatorios(padreId) {
+      const r = Math.random();
+      if (r < 0.12) return; // sin hijos
+      if (r < 0.52) { // un hijo
+        const hijoId = nuevoNodo(padreId);
+        if (Math.random() < 0.5) nodes[padreId].left = hijoId;
+        else nodes[padreId].right = hijoId;
+      } else { // dos hijos
+        nodes[padreId].left = nuevoNodo(padreId);
+        nodes[padreId].right = nuevoNodo(padreId);
+      }
+    }
+    hijosAleatorios(bId);
+    hijosAleatorios(cId);
+
+    const total = Object.keys(nodes).length;
+    if ((total >= 5 && total <= 7) || intento > 30) {
+      return { root: rootId, nodes };
+    }
+  }
 }
 
-/** Lista de ids de las hojas del árbol (nodos sin hijos). */
-function getLeaves(tree) {
-  const childrenMap = getChildrenMap(tree);
-  return Object.keys(tree.nodes).filter(id => childrenMap[id].length === 0);
+/* Calcula x/y (en %) para cada nodo según su profundidad y el
+   orden de las hojas, para que las líneas del árbol siempre luzcan
+   ordenadas sin importar la forma generada. */
+function calcularLayout(estructura) {
+  const { root, nodes } = estructura;
+
+  function hojasDe(id) {
+    const n = nodes[id];
+    if (!n.left && !n.right) return [id];
+    let out = [];
+    if (n.left) out = out.concat(hojasDe(n.left));
+    if (n.right) out = out.concat(hojasDe(n.right));
+    return out;
+  }
+
+  const hojas = hojasDe(root);
+  const totalHojas = hojas.length;
+  hojas.forEach((id, i) => {
+    nodes[id].x = totalHojas === 1 ? 50 : 10 + i * (80 / (totalHojas - 1));
+  });
+
+  function fijarX(id) {
+    if (nodes[id].x !== undefined) return nodes[id].x;
+    const xs = [];
+    if (nodes[id].left) xs.push(fijarX(nodes[id].left));
+    if (nodes[id].right) xs.push(fijarX(nodes[id].right));
+    nodes[id].x = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return nodes[id].x;
+  }
+  fijarX(root);
+
+  function fijarY(id, prof) {
+    nodes[id].y = 12 + prof * 38;
+    if (nodes[id].left) fijarY(nodes[id].left, prof + 1);
+    if (nodes[id].right) fijarY(nodes[id].right, prof + 1);
+  }
+  fijarY(root, 0);
+
+  return estructura;
 }
 
-/** Hermanos de un nodo: otros hijos de su mismo padre. */
-function getSiblings(tree, nodeId) {
-  const parentMap = getParentMap(tree);
-  const childrenMap = getChildrenMap(tree);
-  const parent = parentMap[nodeId];
-  if (parent === undefined) return [];
-  return childrenMap[parent].filter(id => id !== nodeId);
+/* Genera un árbol COMPLETO listo para usar: estructura + layout +
+   letras aleatorias distintas en cada llamada. Esta es la función
+   que usan los 3 módulos para que cada partida sea diferente. */
+function generarArbolAleatorio() {
+  const estructura = calcularLayout(generarEstructuraAleatoria());
+  const ids = Object.keys(estructura.nodes);
+  const letras = barajar(POOL_LETRAS).slice(0, ids.length);
+  const tree = { root: estructura.root, nodes: {} };
+  ids.forEach((id, i) => {
+    tree.nodes[id] = { ...estructura.nodes[id], label: letras[i] };
+  });
+  return tree;
 }
 
-/** Padre de un nodo (o null si es la raíz). */
-function getParent(tree, nodeId) {
-  const parentMap = getParentMap(tree);
-  return parentMap[nodeId] !== undefined ? parentMap[nodeId] : null;
+/* ---------------------------------------------------------------
+   Geometría / propiedades del árbol — una sola fuente de verdad
+   usada por teoría, los 3 módulos y las preguntas del quiz.
+--------------------------------------------------------------- */
+function obtenerHijos(tree, id) {
+  const n = tree.nodes[id];
+  return [n.left, n.right].filter(Boolean);
 }
 
-/** Hijo izquierdo / derecho de un nodo (según el orden de las aristas). */
-function getChild(tree, nodeId, side) {
-  const childrenMap = getChildrenMap(tree);
-  const children = childrenMap[nodeId] || [];
-  if (side === 'izquierdo') return children[0] || null;
-  if (side === 'derecho') return children[1] || null;
-  return null;
+function esHoja(tree, id) {
+  return obtenerHijos(tree, id).length === 0;
 }
 
-/** Dibuja las líneas (aristas) del árbol dentro de un <svg>. */
+function obtenerHojas(tree) {
+  return Object.keys(tree.nodes).filter((id) => esHoja(tree, id));
+}
+
+function profundidadDe(tree, id) {
+  let p = 0;
+  let cur = id;
+  while (tree.nodes[cur].parent) {
+    p++;
+    cur = tree.nodes[cur].parent;
+  }
+  return p;
+}
+
+function alturaDe(tree, id) {
+  const hijos = obtenerHijos(tree, id);
+  if (hijos.length === 0) return 0;
+  return 1 + Math.max(...hijos.map((h) => alturaDe(tree, h)));
+}
+
+function alturaArbol(tree) {
+  return alturaDe(tree, tree.root);
+}
+
+function hermanosDe(tree, id) {
+  const padreId = tree.nodes[id].parent;
+  if (!padreId) return [];
+  return obtenerHijos(tree, padreId).filter((h) => h !== id);
+}
+
+function ancestrosDe(tree, id) {
+  const out = [];
+  let cur = tree.nodes[id].parent;
+  while (cur) {
+    out.push(cur);
+    cur = tree.nodes[cur].parent;
+  }
+  return out;
+}
+
+function etiqueta(tree, id) {
+  return tree.nodes[id] ? tree.nodes[id].label : null;
+}
+
+function idPorEtiqueta(tree, label) {
+  return Object.keys(tree.nodes).find((id) => tree.nodes[id].label === label) || null;
+}
+
+function nodosOrdenados(tree) {
+  // Orden estable: por profundidad y luego por x, para listas de preguntas consistentes.
+  return Object.keys(tree.nodes).sort((a, b) => {
+    const na = tree.nodes[a];
+    const nb = tree.nodes[b];
+    return na.y - nb.y || na.x - nb.x;
+  });
+}
+
+/* ---------------------------------------------------------------
+   Dibujo de las líneas (aristas) del árbol dentro de un <svg>.
+--------------------------------------------------------------- */
 function drawTreeLines(svg, tree) {
   svg.setAttribute('viewBox', '0 0 100 100');
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.innerHTML = '';
-  tree.edges.forEach(([parentId, childId]) => {
-    const p = tree.nodes[parentId];
-    const c = tree.nodes[childId];
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', p.x);
-    line.setAttribute('y1', p.y + 3);
-    line.setAttribute('x2', c.x);
-    line.setAttribute('y2', c.y - 3);
-    line.setAttribute('class', 'edge-line');
-    line.setAttribute('vector-effect', 'non-scaling-stroke');
-    svg.appendChild(line);
+  Object.values(tree.nodes).forEach((n) => {
+    [n.left, n.right].forEach((hijoId) => {
+      if (!hijoId) return;
+      const h = tree.nodes[hijoId];
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', n.x);
+      line.setAttribute('y1', n.y);
+      line.setAttribute('x2', h.x);
+      line.setAttribute('y2', h.y);
+      line.setAttribute('class', 'tree-edge');
+      line.setAttribute('vector-effect', 'non-scaling-stroke');
+      svg.appendChild(line);
+    });
   });
 }
 
-/* ---------- 3. Sesión de jugador ----------
-   Antes de jugar, cada estudiante se identifica con su nombre.
-   Si ya existe en localStorage, se recupera su progreso; si no,
-   se crea un registro nuevo. El nombre activo se guarda en
-   localStorage bajo 'jugadorActual' para no volver a preguntar
-   en cada página durante la misma sesión de navegación.
-------------------------------------------------------------- */
-
-const RANKING_KEY = 'jugadores';
-const SESSION_KEY = 'jugadorActual';
-
-function normalizarNombre(nombre) {
-  return nombre.trim().replace(/\s+/g, ' ');
+/* ---------------------------------------------------------------
+   Utilidad de dificultad: arma un badge <span> reutilizable.
+--------------------------------------------------------------- */
+function badgeDificultad(nivel) {
+  const d = DIFICULTAD[nivel];
+  const span = document.createElement('span');
+  span.className = 'dif-badge ' + d.clase;
+  span.textContent = `${d.icono} ${d.label} · ${d.puntos} pts`;
+  return span;
 }
 
-/** Muestra (si hace falta) el modal de identificación y devuelve
- *  el nombre del jugador activo vía callback `onReady(nombre)`. */
-function initPlayerSession(onReady) {
-  const actual = localStorage.getItem(SESSION_KEY);
-  if (actual) {
-    renderPlayerBadge(actual);
-    if (onReady) onReady(actual);
-    return;
-  }
-  mostrarModalJugador((nombre) => {
-    localStorage.setItem(SESSION_KEY, nombre);
-    if (typeof guardarJugador === 'function') guardarJugador(nombre);
-    renderPlayerBadge(nombre);
-    if (onReady) onReady(nombre);
-  });
+/* ---------------------------------------------------------------
+   Sesión de jugador activo — compartida por todas las páginas.
+--------------------------------------------------------------- */
+const LS_ACTIVE_PLAYER = 'arboles_jugador_activo';
+
+function obtenerJugadorActivo() {
+  return localStorage.getItem(LS_ACTIVE_PLAYER) || '';
 }
 
-/** Crea y muestra el modal de "¿Quién juega?". */
-function mostrarModalJugador(onSubmit) {
-  const overlay = document.createElement('div');
-  overlay.className = 'player-modal-overlay';
-  overlay.innerHTML = `
-    <div class="player-modal" role="dialog" aria-modal="true" aria-labelledby="playerModalTitle">
-      <span class="player-modal-icon">🌳</span>
-      <h2 id="playerModalTitle">¿Quién va a jugar?</h2>
-      <p>Escribe tu nombre para guardar tu progreso y aparecer en el ranking.</p>
-      <form id="playerModalForm">
-        <input type="text" id="playerModalInput" placeholder="Tu nombre" autocomplete="off" required maxlength="40">
-        <button type="submit" class="btn btn-primary">Empezar a jugar →</button>
-      </form>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const input = overlay.querySelector('#playerModalInput');
-  const form = overlay.querySelector('#playerModalForm');
-  setTimeout(() => input.focus(), 50);
-
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const nombre = normalizarNombre(input.value);
-    if (!nombre) return;
-    overlay.remove();
-    onSubmit(nombre);
-  });
+function fijarJugadorActivo(nombre) {
+  localStorage.setItem(LS_ACTIVE_PLAYER, nombre.trim());
 }
 
-/** Muestra el nombre del jugador activo en la barra de navegación,
- *  con un enlace para cambiar de jugador. */
-function renderPlayerBadge(nombre) {
+function escaparHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function initPlayerSession() {
   const slot = document.getElementById('playerBadgeSlot');
   if (!slot) return;
-  slot.innerHTML = `
-    <span class="player-badge">
-      <span class="player-badge-dot"></span>
-      ${nombre}
-      <button type="button" id="switchPlayerBtn" class="player-badge-switch" title="Cambiar de jugador">⇄</button>
-    </span>`;
-  const switchBtn = slot.querySelector('#switchPlayerBtn');
-  if (switchBtn) {
-    switchBtn.addEventListener('click', () => {
-      localStorage.removeItem(SESSION_KEY);
-      location.reload();
-    });
-  }
-}
 
-/** Devuelve el nombre del jugador activo (o null si no hay sesión). */
-function getJugadorActual() {
-  return localStorage.getItem(SESSION_KEY);
+  function render() {
+    const nombre = obtenerJugadorActivo();
+    slot.innerHTML = '';
+    const badge = document.createElement('span');
+    badge.className = 'player-badge';
+    if (nombre) {
+      badge.innerHTML = `<span class="player-dot"></span>${escaparHTML(nombre)}<button type="button" class="player-switch" title="Cambiar de jugador">⇄</button>`;
+    } else {
+      badge.innerHTML = `<button type="button" class="btn btn-ghost btn-small player-set">👤 Identificarme</button>`;
+    }
+    slot.appendChild(badge);
+    const btn = badge.querySelector('.player-switch, .player-set');
+    if (btn) btn.addEventListener('click', pedirNombre);
+  }
+
+  function pedirNombre() {
+    const actual = obtenerJugadorActivo();
+    const nombre = prompt('¿Cuál es tu nombre?', actual || '');
+    if (nombre && nombre.trim()) {
+      fijarJugadorActivo(nombre.trim());
+      if (typeof asegurarJugador === 'function') asegurarJugador(nombre.trim());
+      render();
+    }
+  }
+
+  render();
+  if (!obtenerJugadorActivo()) {
+    setTimeout(pedirNombre, 200);
+  }
 }

@@ -1,139 +1,160 @@
 /* ============================================================
-   modulo3.js — "Escape Room"
-   Tres pistas (altura del árbol, profundidad del nodo ★ y nº de
-   hojas) forman un código de 3 dígitos que abre la puerta. Cada
-   intento fallido de verificación resta puntos. El puntaje final
-   se guarda como modulo3 (0-100).
+   modulo3.js — 🚪 Escape Room
+   Árbol ALEATORIO en cada sala. Tres pistas, cada una con su
+   propio nivel de dificultad:
+     - Fácil:   número de hojas del árbol
+     - Medio:   altura del árbol
+     - Difícil: profundidad del nodo marcado con ★
+   El código de la puerta son esos 3 valores concatenados.
+   El puntaje penaliza los intentos extra en "Verificar".
    ============================================================ */
 
 (function () {
+  let tree = null;
+  let nodoEstrellaId = null;
+  let intentos = 0;
+  let codigoCorrecto = '';
+  let puertaAbierta = false;
+
   const stage = document.getElementById('stage');
   const svg = document.getElementById('lines');
-
   const clue1 = document.getElementById('clue1');
   const clue2 = document.getElementById('clue2');
   const clue3 = document.getElementById('clue3');
+  const clue2Label = document.getElementById('clue2Label');
   const status1 = document.getElementById('status1');
   const status2 = document.getElementById('status2');
   const status3 = document.getElementById('status3');
   const checkBtn = document.getElementById('checkBtn');
-  const openBtn = document.getElementById('openBtn');
   const door = document.getElementById('door');
   const doorTitle = document.getElementById('doorTitle');
   const codeDisplay = document.getElementById('codeDisplay');
   const attemptsEl = document.getElementById('attempts');
+  const openBtn = document.getElementById('openBtn');
   const finalBanner = document.getElementById('finalBanner');
   const finalBannerDetail = document.getElementById('finalBannerDetail');
   const newRoomBtn = document.getElementById('newRoomBtn');
 
-  const NODOS_POSIBLES_ESTRELLA = Object.keys(TREE_A.nodes).filter(id => id !== TREE_A.root);
-  const PENALIZACION_POR_INTENTO = 15;
+  const PISTAS_META = [
+    { nivel: 'facil', label: 'hojas' },
+    { nivel: 'medio', label: 'altura' },
+    { nivel: 'dificil', label: 'profundidad' },
+  ];
 
-  let nodoEstrella = null;
-  let respuestas = null; // { altura, profundidad, hojas }
-  let intentos = 0;
-  let desbloqueada = false;
+  function nuevaPartida() {
+    tree = generarArbolAleatorio();
+    const noRaiz = nodosOrdenados(tree).filter((id) => id !== tree.root);
+    nodoEstrellaId = elegirAleatorio(noRaiz.length ? noRaiz : [tree.root]);
+    intentos = 0;
+    puertaAbierta = false;
 
-  function elegirNodoEstrella() {
-    const idx = Math.floor(Math.random() * NODOS_POSIBLES_ESTRELLA.length);
-    return NODOS_POSIBLES_ESTRELLA[idx];
+    dibujarTablero();
+    marcarDificultades();
+
+    const altura = alturaArbol(tree);
+    const profundidad = profundidadDe(tree, nodoEstrellaId);
+    const hojas = obtenerHojas(tree).length;
+    codigoCorrecto = `${hojas}${altura}${profundidad}`;
+
+    clue1.value = '';
+    clue2.value = '';
+    clue3.value = '';
+    [status1, status2, status3].forEach((s) => (s.textContent = ''));
+    clue2Label.textContent = `2. ¿Cuál es la profundidad del nodo marcado con ★ (${etiqueta(tree, nodoEstrellaId)})?`;
+
+    attemptsEl.textContent = 'Intentos: 0';
+    codeDisplay.textContent = '_ _ _';
+    doorTitle.textContent = '🔒 Puerta cerrada';
+    openBtn.disabled = true;
+    finalBanner.classList.remove('show');
+    door.classList.remove('door-open');
   }
 
-  function construirEscena() {
-    stage.querySelectorAll('.tree-node').forEach(n => n.remove());
-    drawTreeLines(svg, TREE_A);
-
-    nodoEstrella = elegirNodoEstrella();
-    respuestas = {
-      altura: getTreeHeight(TREE_A),
-      profundidad: getDepth(TREE_A, nodoEstrella),
-      hojas: getLeaves(TREE_A).length
-    };
-
-    Object.entries(TREE_A.nodes).forEach(([id, n]) => {
+  function dibujarTablero() {
+    drawTreeLines(svg, tree);
+    stage.querySelectorAll('.tree-node').forEach((n) => n.remove());
+    nodosOrdenados(tree).forEach((id) => {
+      const n = tree.nodes[id];
       const el = document.createElement('div');
-      el.className = 'tree-node filled' + (id === TREE_A.root ? ' root-node' : '') + (id === nodoEstrella ? ' star-node' : '');
+      el.className = 'tree-node filled' + (id === tree.root ? ' root-node' : '') + (id === nodoEstrellaId ? ' star-node' : '');
       el.style.left = n.x + '%';
       el.style.top = n.y + '%';
-      el.textContent = n.label + (id === nodoEstrella ? ' ★' : '');
+      el.textContent = n.label + (id === nodoEstrellaId ? ' ★' : '');
       stage.appendChild(el);
     });
   }
 
-  function reiniciarPuerta() {
-    intentos = 0;
-    desbloqueada = false;
-    [clue1, clue2, clue3].forEach(inp => { inp.value = ''; inp.disabled = false; });
-    [status1, status2, status3].forEach(s => { s.textContent = ''; s.className = 'clue-status'; });
-    codeDisplay.textContent = '_ _ _';
-    attemptsEl.textContent = 'Intentos: 0';
-    doorTitle.textContent = '🔒 Puerta cerrada';
-    door.classList.remove('unlocked', 'open');
-    finalBanner.classList.remove('active');
-    openBtn.disabled = true;
+  function marcarDificultades() {
+    const labels = {
+      clue1: document.querySelector('label[for="clue1"]'),
+      clue3: document.querySelector('label[for="clue3"]'),
+    };
+    // clue1 = altura (medio), clue2 = profundidad (difícil), clue3 = hojas (fácil)
+    setBadge(document.querySelector('label[for="clue1"]'), 'medio');
+    setBadge(clue2Label, 'dificil');
+    setBadge(document.querySelector('label[for="clue3"]'), 'facil');
   }
 
-  function nuevaSala() {
-    construirEscena();
-    reiniciarPuerta();
+  function setBadge(labelEl, nivel) {
+    if (!labelEl) return;
+    let badge = labelEl.querySelector('.dif-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      labelEl.appendChild(badge);
+    }
+    const d = DIFICULTAD[nivel];
+    badge.className = 'dif-badge ' + d.clase;
+    badge.style.marginLeft = '8px';
+    badge.textContent = `${d.icono} ${d.label}`;
   }
 
-  function verificarPistas() {
-    if (desbloqueada) return;
+  function verificar() {
+    if (puertaAbierta) return;
+    intentos++;
+    attemptsEl.textContent = `Intentos: ${intentos}`;
 
-    const v1 = parseInt(clue1.value, 10);
-    const v2 = parseInt(clue2.value, 10);
-    const v3 = parseInt(clue3.value, 10);
+    const altura = alturaArbol(tree);
+    const profundidad = profundidadDe(tree, nodoEstrellaId);
+    const hojas = obtenerHojas(tree).length;
 
-    const ok1 = v1 === respuestas.altura;
-    const ok2 = v2 === respuestas.profundidad;
-    const ok3 = v3 === respuestas.hojas;
+    const ok1 = Number(clue1.value) === altura;
+    const ok2 = Number(clue2.value) === profundidad;
+    const ok3 = Number(clue3.value) === hojas;
 
-    pintarEstado(status1, ok1);
-    pintarEstado(status2, ok2);
-    pintarEstado(status3, ok3);
+    status1.textContent = clue1.value === '' ? '' : ok1 ? '✅' : '❌';
+    status2.textContent = clue2.value === '' ? '' : ok2 ? '✅' : '❌';
+    status3.textContent = clue3.value === '' ? '' : ok3 ? '✅' : '❌';
 
     if (ok1 && ok2 && ok3) {
-      desbloqueada = true;
-      const codigo = `${respuestas.altura}${respuestas.profundidad}${respuestas.hojas}`;
-      codeDisplay.textContent = codigo.split('').join(' ');
-      doorTitle.textContent = '🔓 Código correcto — puerta desbloqueada';
-      door.classList.add('unlocked');
+      codeDisplay.textContent = codigoCorrecto.split('').join(' ');
+      doorTitle.textContent = '🔓 Código correcto — puerta lista';
       openBtn.disabled = false;
-      [clue1, clue2, clue3].forEach(inp => (inp.disabled = true));
     } else {
-      intentos++;
-      attemptsEl.textContent = `Intentos: ${intentos}`;
-      door.classList.add('shake');
-      setTimeout(() => door.classList.remove('shake'), 400);
+      openBtn.disabled = true;
     }
   }
 
-  function pintarEstado(span, ok) {
-    span.textContent = ok ? '✔' : '✗';
-    span.className = 'clue-status ' + (ok ? 'ok' : 'bad');
-  }
-
   function abrirPuerta() {
-    if (!desbloqueada) return;
-    door.classList.add('open');
+    if (openBtn.disabled) return;
+    puertaAbierta = true;
+    door.classList.add('door-open');
     doorTitle.textContent = '🎉 ¡Puerta abierta!';
 
-    const pct = Math.max(10, Math.min(100, 100 - intentos * PENALIZACION_POR_INTENTO));
-    finalBannerDetail.textContent = intentos === 0
-      ? 'Resolviste el código a la primera. ¡Puntaje perfecto!'
-      : `Lo lograste con ${intentos} ${intentos === 1 ? 'intento fallido' : 'intentos fallidos'}. Puntaje: ${pct}/100.`;
-    finalBanner.classList.add('active');
-
-    const jugador = getJugadorActual();
-    if (jugador) actualizarJugador(jugador, 'modulo3', pct);
-
+    const porcentaje = Math.max(30, 100 - (intentos - 1) * 15);
+    finalBannerDetail.textContent = `Abriste la puerta en ${intentos} intento${intentos === 1 ? '' : 's'}. Puntaje: ${porcentaje.toFixed(1)} / 100.`;
+    finalBanner.classList.add('show');
     finalBanner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const jugador = obtenerJugadorActivo();
+    if (jugador) actualizarJugador(jugador, 'modulo3', porcentaje);
   }
 
-  checkBtn.addEventListener('click', verificarPistas);
+  checkBtn.addEventListener('click', verificar);
   openBtn.addEventListener('click', abrirPuerta);
-  newRoomBtn.addEventListener('click', nuevaSala);
+  newRoomBtn.addEventListener('click', nuevaPartida);
 
-  initPlayerSession(() => nuevaSala());
+  window.addEventListener('DOMContentLoaded', () => {
+    if (typeof initPlayerSession === 'function') initPlayerSession();
+    nuevaPartida();
+  });
 })();
