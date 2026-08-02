@@ -5,6 +5,10 @@
    parentesco" y luego responde un cuestionario generado a partir
    de ESE árbol concreto, con preguntas de dificultad fácil /
    media / difícil que valen distinto puntaje.
+
+   El banco de preguntas tiene VARIAS plantillas por nivel (no
+   siempre las mismas 3): cada partida elige 3 al azar por nivel,
+   así el cuestionario cambia de una ronda a otra.
    ============================================================ */
 
 (function () {
@@ -193,9 +197,10 @@
     const noRaiz = ids.filter((id) => id !== tree.root);
     const conHijos = ids.filter((id) => obtenerHijos(tree, id).length > 0);
     const conHermano = ids.filter((id) => hermanosDe(tree, id).length > 0);
+    const conAbuelo = ids.filter((id) => abueloDe(tree, id));
     const banco = [];
 
-    // Fáciles
+    /* ---------------- Fáciles ---------------- */
     banco.push({
       nivel: 'facil',
       texto: '¿Cuál nodo es la raíz del árbol?',
@@ -215,8 +220,24 @@
       opciones: ['Sí', 'No'],
       correcta: 'Sí',
     });
+    if (tree.nodes[tree.root].left) {
+      banco.push({
+        nivel: 'facil',
+        texto: `¿Cuál es el hijo izquierdo de la raíz "${etiqueta(tree, tree.root)}"?`,
+        opciones: barajar(ids.map((id) => etiqueta(tree, id))),
+        correcta: etiqueta(tree, tree.nodes[tree.root].left),
+      });
+    }
+    if (tree.nodes[tree.root].right) {
+      banco.push({
+        nivel: 'facil',
+        texto: `¿Cuál es el hijo derecho de la raíz "${etiqueta(tree, tree.root)}"?`,
+        opciones: barajar(ids.map((id) => etiqueta(tree, id))),
+        correcta: etiqueta(tree, tree.nodes[tree.root].right),
+      });
+    }
 
-    // Medias
+    /* ---------------- Medias ---------------- */
     if (noRaiz.length) {
       const n = elegirAleatorio(noRaiz);
       banco.push({
@@ -247,8 +268,37 @@
         correcta: herm[0],
       });
     }
+    if (conHijos.length) {
+      const n = elegirAleatorio(conHijos);
+      const numHijos = obtenerHijos(tree, n).length;
+      banco.push({
+        nivel: 'medio',
+        texto: `¿Cuántos hijos tiene "${etiqueta(tree, n)}"?`,
+        opciones: barajar(Array.from(new Set([numHijos, Math.max(0, numHijos - 1), Math.min(2, numHijos + 1)].map(String)))),
+        correcta: String(numHijos),
+      });
+    }
+    if (noRaiz.length) {
+      const b = elegirAleatorio(noRaiz);
+      const ancestros = ancestrosDe(tree, b);
+      const preguntarSi = Math.random() < 0.5 && ancestros.length > 0;
+      let aId;
+      if (preguntarSi) {
+        aId = elegirAleatorio(ancestros);
+      } else {
+        const noAncestros = ids.filter((id) => id !== b && !ancestros.includes(id));
+        aId = noAncestros.length ? elegirAleatorio(noAncestros) : elegirAleatorio(ancestros.length ? ancestros : [tree.root]);
+      }
+      const respuestaSi = ancestros.includes(aId);
+      banco.push({
+        nivel: 'medio',
+        texto: `¿"${etiqueta(tree, aId)}" es ancestro de "${etiqueta(tree, b)}"?`,
+        opciones: ['Sí', 'No'],
+        correcta: respuestaSi ? 'Sí' : 'No',
+      });
+    }
 
-    // Difíciles
+    /* ---------------- Difíciles ---------------- */
     const altura = alturaArbol(tree);
     banco.push({
       nivel: 'dificil',
@@ -271,15 +321,34 @@
       opciones: barajar(Array.from(new Set([numHojas, numHojas + 1, Math.max(1, numHojas - 1)].map(String)))),
       correcta: String(numHojas),
     });
+    if (conHijos.length) {
+      const n = elegirAleatorio(conHijos);
+      const numDesc = contarDescendientes(tree, n);
+      banco.push({
+        nivel: 'dificil',
+        texto: `¿Cuántos nodos descendientes tiene "${etiqueta(tree, n)}"? (hijos, nietos, etc.)`,
+        opciones: barajar(Array.from(new Set([numDesc, numDesc + 1, Math.max(0, numDesc - 1)].map(String)))),
+        correcta: String(numDesc),
+      });
+    }
+    if (conAbuelo.length) {
+      const n = elegirAleatorio(conAbuelo);
+      banco.push({
+        nivel: 'dificil',
+        texto: `¿Quién es el abuelo de "${etiqueta(tree, n)}"?`,
+        opciones: barajar(ids.map((id) => etiqueta(tree, id))),
+        correcta: etiqueta(tree, abueloDe(tree, n)),
+      });
+    }
 
     return banco;
   }
 
   function iniciarQuiz() {
     const banco = generarBancoPreguntas();
-    const facil = barajar(banco.filter((p) => p.nivel === 'facil')).slice(0, 2);
-    const medio = barajar(banco.filter((p) => p.nivel === 'medio')).slice(0, 2);
-    const dificil = barajar(banco.filter((p) => p.nivel === 'dificil')).slice(0, 2);
+    const facil = barajar(banco.filter((p) => p.nivel === 'facil')).slice(0, 3);
+    const medio = barajar(banco.filter((p) => p.nivel === 'medio')).slice(0, 3);
+    const dificil = barajar(banco.filter((p) => p.nivel === 'dificil')).slice(0, 3);
     preguntas = barajar([...facil, ...medio, ...dificil]);
     respuestas = {};
     renderQuiz();
@@ -289,6 +358,14 @@
 
   function renderQuiz() {
     questionsEl.innerHTML = '';
+
+    const progressWrap = document.createElement('div');
+    progressWrap.className = 'quiz-progress-wrap';
+    progressWrap.innerHTML = `
+      <div class="quiz-progress-track"><div class="quiz-progress-fill" id="quizProgressFill"></div></div>
+      <span class="quiz-progress-label" id="quizProgressLabel">0 / ${preguntas.length} respondidas</span>`;
+    questionsEl.appendChild(progressWrap);
+
     preguntas.forEach((p, i) => {
       const card = document.createElement('div');
       card.className = 'question-card';
@@ -324,25 +401,66 @@
     btn.style.marginTop = '10px';
     btn.addEventListener('click', calificar);
     questionsEl.appendChild(btn);
+
+    questionsEl.querySelectorAll('input').forEach((inp) => {
+      inp.addEventListener('input', actualizarProgresoQuiz);
+      inp.addEventListener('change', actualizarProgresoQuiz);
+    });
+  }
+
+  function actualizarProgresoQuiz() {
+    let respondidas = 0;
+    preguntas.forEach((p, i) => {
+      if (p.tipo === 'texto') {
+        const input = questionsEl.querySelector(`.q-text-input[data-i="${i}"]`);
+        if (input && input.value.trim() !== '') respondidas++;
+      } else {
+        const checked = questionsEl.querySelector(`input[name="q${i}"]:checked`);
+        if (checked) respondidas++;
+      }
+    });
+    const fill = document.getElementById('quizProgressFill');
+    const label = document.getElementById('quizProgressLabel');
+    if (fill) fill.style.width = `${(respondidas / preguntas.length) * 100}%`;
+    if (label) label.textContent = `${respondidas} / ${preguntas.length} respondidas`;
   }
 
   function calificar() {
     let puntosObtenidos = 0;
     let puntosTotales = 0;
+    const cards = questionsEl.querySelectorAll('.question-card');
+
     preguntas.forEach((p, i) => {
       const dif = DIFICULTAD[p.nivel];
       puntosTotales += dif.puntos;
       let valor = '';
+      let inputEls = [];
       if (p.tipo === 'texto') {
         const input = questionsEl.querySelector(`.q-text-input[data-i="${i}"]`);
         valor = (input.value || '').trim().toUpperCase().replace(/\s+/g, '');
+        inputEls = input ? [input] : [];
       } else {
         const checked = questionsEl.querySelector(`input[name="q${i}"]:checked`);
         valor = checked ? checked.value : '';
+        inputEls = Array.from(questionsEl.querySelectorAll(`input[name="q${i}"]`));
       }
       const correctaNorm = p.correcta.toUpperCase().replace(/\s+/g, '');
-      if (valor === correctaNorm) puntosObtenidos += dif.puntos;
+      const acierto = valor === correctaNorm;
+      if (acierto) puntosObtenidos += dif.puntos;
+
+      const card = cards[i];
+      if (card) {
+        card.classList.add(acierto ? 'q-correct' : 'q-wrong');
+        inputEls.forEach((el) => (el.disabled = true));
+        const marca = document.createElement('span');
+        marca.className = 'q-result-mark';
+        marca.textContent = acierto ? '✅ Correcto' : `❌ Era: ${p.correcta}`;
+        card.querySelector('.q-head').appendChild(marca);
+      }
     });
+
+    const btnEnviar = questionsEl.querySelector('.btn-primary');
+    if (btnEnviar) btnEnviar.disabled = true;
 
     const porcentaje = Math.round((puntosObtenidos / puntosTotales) * 1000) / 10;
     finalScoreEl.textContent = porcentaje.toFixed(1);

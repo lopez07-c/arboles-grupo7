@@ -4,7 +4,8 @@
    instrucciones de navegación de dificultad variable:
      - Fácil:   ir al hijo izquierdo/derecho del nodo actual
      - Medio:   ir al padre del nodo actual (retroceder)
-     - Difícil: ir al hermano del nodo actual (combina padre + hijo)
+     - Difícil: ir al hermano, al abuelo o al tío del nodo actual
+                (combinan varios saltos de parentesco)
    Cada instrucción vale distinto puntaje según su dificultad.
    ============================================================ */
 
@@ -46,6 +47,14 @@
       const hermanos = hermanosDe(tree, actual);
       if (hermanos.length) {
         opciones.push({ tipo: 'hermano', nivel: 'dificil', destinoId: hermanos[0], texto: 'Ve al hermano del nodo actual.' });
+      }
+      const abuelo = abueloDe(tree, actual);
+      if (abuelo) {
+        opciones.push({ tipo: 'abuelo', nivel: 'dificil', destinoId: abuelo, texto: 'Ve al abuelo del nodo actual (sube dos niveles).' });
+      }
+      const tios = tioDe(tree, actual);
+      if (tios.length) {
+        opciones.push({ tipo: 'tio', nivel: 'dificil', destinoId: tios[0], texto: 'Ve al tío del nodo actual (el hermano de tu padre).' });
       }
       if (!opciones.length) break;
       const elegida = elegirAleatorio(opciones);
@@ -119,6 +128,12 @@
       marcarPosicion();
       actualizarMarcadores();
       mostrarInstruccion();
+
+      const el = stage.querySelector(`.tree-node[data-id="${clickId}"]`);
+      if (el) {
+        el.classList.add('step-success');
+        setTimeout(() => el.classList.remove('step-success'), 500);
+      }
     } else {
       primerIntentoOk = false;
       const el = stage.querySelector(`.tree-node[data-id="${clickId}"]`);

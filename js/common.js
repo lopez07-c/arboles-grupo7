@@ -5,7 +5,8 @@
    - Generador de árboles ALEATORIOS (estructura + letras) para
      los módulos 1, 2 y 3, de modo que cada partida sea distinta.
    - Funciones de geometría: altura, profundidad, hojas, hermanos,
-     ancestros — una sola fuente de verdad para todo el proyecto.
+     ancestros, abuelos, tíos, descendientes — una sola fuente de
+     verdad para todo el proyecto.
    - Dibujo de las líneas del árbol en <svg>.
    - Niveles de dificultad compartidos (fácil / medio / difícil).
    - Sesión del jugador activo (localStorage) + badge en el navbar.
@@ -206,6 +207,27 @@ function ancestrosDe(tree, id) {
     cur = tree.nodes[cur].parent;
   }
   return out;
+}
+
+/* Abuelo: el padre del padre (null si no existe, p.ej. raíz o hijos directos de la raíz). */
+function abueloDe(tree, id) {
+  const padreId = tree.nodes[id].parent;
+  if (!padreId) return null;
+  return tree.nodes[padreId].parent || null;
+}
+
+/* Tío(s): hermanos del padre (hijos del abuelo distintos del padre). */
+function tioDe(tree, id) {
+  const padreId = tree.nodes[id].parent;
+  if (!padreId) return [];
+  return hermanosDe(tree, padreId);
+}
+
+/* Cantidad de nodos descendientes (hijos, nietos, ...) de un nodo, sin contarlo a él mismo. */
+function contarDescendientes(tree, id) {
+  const hijos = obtenerHijos(tree, id);
+  if (!hijos.length) return 0;
+  return hijos.reduce((acc, h) => acc + 1 + contarDescendientes(tree, h), 0);
 }
 
 function etiqueta(tree, id) {
