@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🏆 Panel de Control de Jugadores | Grupo 7</title>
-<link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🏆 Panel de Control de Jugadores | Grupo 7</title>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-nav="ranking">
 
@@ -113,8 +113,14 @@
   </div>
 </footer>
 
+<!-- SDK de Firebase (Compatibilidad v10) -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+<!-- Scripts de la aplicación -->
 <script src="js/common.js"></script>
 <script src="js/ranking.js"></script>
+
 <script>
   initPlayerSession();
   initPanelJugadores();

@@ -2,24 +2,29 @@
     ranking.js — Grupo 7 · Árboles
     Sistema de jugadores + puntaje final ponderado:
       puntajeFinal = modulo1*0.30 + modulo2*0.30 + modulo3*0.40
-    y el Panel de Control (jugadores.html)
+    Sincronización en tiempo real vía Firebase Cloud Firestore
     ============================================================ */
 
-const LS_JUGADORES = 'arboles_jugadores';
+// Credenciales de tu proyecto Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCrVdAQ9KzaOMkZv4EY7Dz4As-fK86o2Eo",
+  authDomain: "arboles-grupo7.firebaseapp.com",
+  projectId: "arboles-grupo7",
+  storageBucket: "arboles-grupo7.firebasestorage.app",
+  messagingSenderId: "919450449243",
+  appId: "1:919450449243:web:23f4412589aa99f25e167e",
+  measurementId: "G-XMTZ5CPJXD"
+};
+
+// Inicialización de Firebase Compat y Firestore
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore();
+
 const PESOS = { modulo1: 0.3, modulo2: 0.3, modulo3: 0.4 };
 
-function obtenerJugadores() {
-  try {
-    return JSON.parse(localStorage.getItem(LS_JUGADORES)) || [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function guardarJugadores(lista) {
-  localStorage.setItem(LS_JUGADORES, JSON.stringify(lista));
-}
-
+// Función matemática de cálculo de puntaje
 function calcularPuntaje(m1, m2, m3) {
   const a = Number(m1) || 0;
   const b = Number(m2) || 0;
@@ -27,52 +32,69 @@ function calcularPuntaje(m1, m2, m3) {
   return Math.round((a * PESOS.modulo1 + b * PESOS.modulo2 + c * PESOS.modulo3) * 10) / 10;
 }
 
-function buscarJugador(lista, nombre) {
-  return lista.find((x) => x.nombre.toLowerCase() === nombre.toLowerCase());
+// Asegura la existencia de un jugador en la nube
+async function asegurarJugador(nombre) {
+  if (!nombre || !nombre.trim()) return;
+  const idDoc = nombre.trim().toLowerCase();
+  const docRef = db.collection('jugadores').doc(idDoc);
+  const docSnap = await docRef.get();
+
+  if (!docSnap.exists) {
+    await docRef.set({
+      nombre: nombre.trim(),
+      modulo1: null,
+      modulo2: null,
+      modulo3: null,
+      fecha: new Date().toISOString()
+    });
+  }
 }
 
-function asegurarJugador(nombre) {
-  const lista = obtenerJugadores();
-  let j = buscarJugador(lista, nombre);
-  if (!j) {
-    j = { nombre, modulo1: null, modulo2: null, modulo3: null, fecha: new Date().toISOString() };
-    lista.push(j);
-    guardarJugadores(lista);
-  }
-  return j;
-}
+// Actualiza la puntuación de un módulo específico en la nube
+async function actualizarJugador(nombre, modulo, puntaje) {
+  if (!nombre || !nombre.trim()) return;
+  const idDoc = nombre.trim().toLowerCase();
+  const docRef = db.collection('jugadores').doc(idDoc);
+  const docSnap = await docRef.get();
 
-function actualizarJugador(nombre, modulo, puntaje) {
-  const lista = obtenerJugadores();
-  let j = buscarJugador(lista, nombre);
-  if (!j) {
-    j = { nombre, modulo1: null, modulo2: null, modulo3: null, fecha: new Date().toISOString() };
-    lista.push(j);
+  let datos = {
+    nombre: nombre.trim(),
+    modulo1: null,
+    modulo2: null,
+    modulo3: null,
+    fecha: new Date().toISOString()
+  };
+
+  if (docSnap.exists) {
+    datos = docSnap.data();
   }
-  const actual = j[modulo];
+
   const redondeado = Math.round(puntaje * 10) / 10;
-  if (actual === null || actual === undefined || redondeado > actual) {
-    j[modulo] = redondeado;
+  if (datos[modulo] === null || datos[modulo] === undefined || redondeado > datos[modulo]) {
+    datos[modulo] = redondeado;
   }
-  j.fecha = new Date().toISOString();
-  guardarJugadores(lista);
-  return j;
+
+  datos.fecha = new Date().toISOString();
+  await docRef.set(datos);
 }
 
-function obtenerRanking() {
-  return obtenerJugadores()
-    .map((j) => ({ ...j, puntajeFinal: calcularPuntaje(j.modulo1, j.modulo2, j.modulo3) }))
-    .sort((a, b) => b.puntajeFinal - a.puntajeFinal);
+// Elimina un jugador de la base de datos
+async function eliminarJugador(nombre) {
+  if (!nombre) return;
+  await db.collection('jugadores').doc(nombre.trim().toLowerCase()).delete();
 }
 
-function eliminarJugador(nombre) {
-  guardarJugadores(obtenerJugadores().filter((x) => x.nombre.toLowerCase() !== nombre.toLowerCase()));
+// Reinicia completamente el ranking en la nube
+async function reiniciarRanking() {
+  const snapshot = await db.collection('jugadores').get();
+  const batch = db.batch();
+  snapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+  await batch.commit();
 }
 
-function reiniciarRanking() {
-  guardarJugadores([]);
-}
-
+// Utilidad para limpiar entradas HTML y prevenir XSS
 function escaparHTML(str) {
   if (!str) return '';
   return String(str)
@@ -90,17 +112,19 @@ function initPanelJugadores() {
   const buscador = document.getElementById('buscadorJugador');
   const cuerpoTabla = document.getElementById('rankingTableBody');
   let filtro = '';
+  let rankingGlobalCache = [];
 
   function fmtNum(n) {
-    return n === null || n === undefined ? '—' : n.toFixed(1);
+    return n === null || n === undefined ? '—' : Number(n).toFixed(1);
   }
+
   function fmtFecha(iso) {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
-  function render() {
-    const ranking = obtenerRanking();
+  // Renderiza la interfaz en base a los datos actuales
+  function renderUI(ranking) {
     const visibles = ranking.filter((j) => j.nombre.toLowerCase().includes(filtro.toLowerCase()));
 
     // 1. Estadísticas generales
@@ -114,11 +138,11 @@ function initPanelJugadores() {
     if (elPrimero) elPrimero.textContent = ranking[0] ? ranking[0].nombre : '—';
     if (elSegundo) elSegundo.textContent = ranking[1] ? ranking[1].nombre : '—';
     if (elTercero) elTercero.textContent = ranking[2] ? ranking[2].nombre : '—';
-    
+
     const promedio = ranking.length ? ranking.reduce((s, j) => s + j.puntajeFinal, 0) / ranking.length : 0;
     if (elPromedio) elPromedio.textContent = promedio.toFixed(1);
 
-    // 2. Render del Podio (Top 3)
+    // 2. Podio (Top 3)
     const podio = document.getElementById('podio');
     if (podio) {
       podio.innerHTML = '';
@@ -135,13 +159,13 @@ function initPanelJugadores() {
       });
     }
 
-    // 3. Render simultáneo de la tabla con todos los jugadores
+    // 3. Tabla General de Jugadores
     if (!cuerpoTabla) return;
     cuerpoTabla.innerHTML = '';
 
     if (visibles.length === 0) {
       cuerpoTabla.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:26px;color:var(--muted);">
-        ${ranking.length === 0 ? 'Todavía no hay jugadores registrados.' : 'Ningún jugador coincide con la búsqueda.'}
+        ${ranking.length === 0 ? 'Todavía no hay jugadores registrados en la nube.' : 'Ningún jugador coincide con la búsqueda.'}
       </td></tr>`;
       return;
     }
@@ -161,33 +185,45 @@ function initPanelJugadores() {
       cuerpoTabla.appendChild(tr);
     });
 
-    // Activar eventos de borrado para cada fila de la tabla simultánea
+    // Asignación de evento de eliminación en Firestore
     cuerpoTabla.querySelectorAll('.btn-eliminar').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const nombreTarget = btn.getAttribute('data-nombre');
-        if (confirm(`¿Eliminar a "${nombreTarget}" del ranking?`)) {
-          eliminarJugador(nombreTarget);
-          render();
+        if (confirm(`¿Eliminar a "${nombreTarget}" del ranking general?`)) {
+          await eliminarJugador(nombreTarget);
         }
       });
     });
   }
 
+  // Escucha activa en tiempo real mediante Firestore
+  db.collection('jugadores').onSnapshot((snapshot) => {
+    let ranking = [];
+    snapshot.forEach((doc) => {
+      const j = doc.data();
+      j.puntajeFinal = calcularPuntaje(j.modulo1, j.modulo2, j.modulo3);
+      ranking.push(j);
+    });
+
+    ranking.sort((a, b) => b.puntajeFinal - a.puntajeFinal);
+    rankingGlobalCache = ranking;
+    renderUI(rankingGlobalCache);
+  });
+
   if (buscador) {
     buscador.addEventListener('input', () => {
       filtro = buscador.value;
-      render();
+      renderUI(rankingGlobalCache);
     });
   }
 
   const btnNuevo = document.getElementById('nuevoJugadorBtn');
   if (btnNuevo) {
-    btnNuevo.addEventListener('click', () => {
+    btnNuevo.addEventListener('click', async () => {
       const nombre = prompt('Nombre del nuevo jugador:');
       if (nombre && nombre.trim()) {
-        asegurarJugador(nombre.trim());
+        await asegurarJugador(nombre.trim());
         if (typeof fijarJugadorActivo === 'function') fijarJugadorActivo(nombre.trim());
-        render();
         if (typeof initPlayerSession === 'function') initPlayerSession();
       }
     });
@@ -195,10 +231,9 @@ function initPanelJugadores() {
 
   const btnReiniciar = document.getElementById('reiniciarRankingBtn');
   if (btnReiniciar) {
-    btnReiniciar.addEventListener('click', () => {
-      if (confirm('Esto borrará TODOS los jugadores y puntajes guardados. ¿Continuar?')) {
-        reiniciarRanking();
-        render();
+    btnReiniciar.addEventListener('click', async () => {
+      if (confirm('Esto borrará TODOS los jugadores y puntajes guardados en la nube. ¿Continuar?')) {
+        await reiniciarRanking();
       }
     });
   }
@@ -206,9 +241,8 @@ function initPanelJugadores() {
   const btnCSV = document.getElementById('exportarCSVBtn');
   if (btnCSV) {
     btnCSV.addEventListener('click', () => {
-      const ranking = obtenerRanking();
       const filas = [['#', 'Jugador', 'Módulo 1', 'Módulo 2', 'Módulo 3', 'Puntaje Final', 'Fecha']];
-      ranking.forEach((j, i) =>
+      rankingGlobalCache.forEach((j, i) =>
         filas.push([i + 1, j.nombre, fmtNum(j.modulo1), fmtNum(j.modulo2), fmtNum(j.modulo3), fmtNum(j.puntajeFinal), fmtFecha(j.fecha)])
       );
       const csv = filas.map((f) => f.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -225,6 +259,4 @@ function initPanelJugadores() {
   if (btnPDF) {
     btnPDF.addEventListener('click', () => window.print());
   }
-
-  render();
 }
